@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Excluir cliente{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-trash"></i> Excluir Cliente</h1>
+</div>
+
+<div class="card" style="max-width: 520px;">
+  <div class="card-body">
+    <p style="font-size: 16px; color: var(--texto-titulo); margin-top: 0;">
+      Tem certeza que deseja excluir o cliente <strong>{{ object.nome }}</strong>?
+    </p>
+    <p style="color: var(--texto-corpo); font-size: 14px;">
+      <i class="bi bi-exclamation-triangle" style="color: var(--alerta);"></i>
+      Esta ação não pode ser desfeita. Todos os dados deste cliente serão removidos permanentemente.
+    </p>
+
+    <div style="background: var(--fundo-alt); border-radius: 3px; padding: 12px 16px; margin-bottom: 20px; font-size: 14px;">
+      <div><strong>CPF/CNPJ:</strong> {{ object.cpf_cnpj }}</div>
+      {% if object.email %}<div><strong>E-mail:</strong> {{ object.email }}</div>{% endif %}
+      {% if object.cidade %}<div><strong>Cidade:</strong> {{ object.cidade }}{% if object.estado %}/{{ object.estado }}{% endif %}</div>{% endif %}
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="d-flex gap-1">
+        <button type="submit" class="btn-primary btn-danger">
+          <i class="bi bi-trash"></i> Sim, excluir
+        </button>
+        <a href="{% url 'clientes:detalhe' object.pk %}" class="btn-secondary">
+          <i class="bi bi-arrow-left"></i> Cancelar
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

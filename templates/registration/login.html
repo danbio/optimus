@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar — ERP Optimus</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/intelbras.css' %}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: var(--fundo);
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 400px;
+      padding: 16px;
+    }
+
+    .login-logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .login-logo .login-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--verde);
+      font-size: 26px;
+      font-weight: 700;
+    }
+
+    .login-logo .login-brand i {
+      font-size: 36px;
+    }
+
+    .login-logo .login-subtitle {
+      color: var(--texto-corpo);
+      font-size: 14px;
+      margin-top: 6px;
+    }
+
+    .login-card {
+      background: #fff;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.14);
+      padding: 36px 32px 28px;
+    }
+
+    .login-card h2 {
+      margin: 0 0 24px;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--texto-titulo);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .login-footer {
+      text-align: center;
+      margin-top: 20px;
+      color: var(--texto-corpo);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-container">
+  <div class="login-logo">
+    <div class="login-brand">
+      <i class="bi bi-grid-3x3-gap-fill"></i>
+      ERP Optimus
+    </div>
+    <div class="login-subtitle">Sistema de Gestão</div>
+  </div>
+
+  <div class="login-card">
+    <h2><i class="bi bi-lock"></i> Acesso ao sistema</h2>
+
+    {% if form.errors %}
+    <div class="alerta alerta-erro">
+      <i class="bi bi-x-circle"></i>
+      Usuário ou senha inválidos. Tente novamente.
+    </div>
+    {% endif %}
+
+    {% if messages %}
+      {% for msg in messages %}
+      <div class="alerta alerta-{{ msg.tags }}">
+        <i class="bi bi-info-circle"></i> {{ msg }}
+      </div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <div class="form-group">
+        <label for="id_username">
+          <i class="bi bi-person"></i> Usuário<span class="obrigatorio">*</span>
+        </label>
+        <input type="text"
+               name="username"
+               id="id_username"
+               class="form-control"
+               placeholder="Seu usuário"
+               autocomplete="username"
+               autofocus
+               required>
+      </div>
+
+      <div class="form-group">
+        <label for="id_password">
+          <i class="bi bi-key"></i> Senha<span class="obrigatorio">*</span>
+        </label>
+        <input type="password"
+               name="password"
+               id="id_password"
+               class="form-control"
+               placeholder="Sua senha"
+               autocomplete="current-password"
+               required>
+      </div>
+
+      <input type="hidden" name="next" value="{{ next }}">
+
+      <button type="submit" class="btn-primary w-100" style="justify-content: center; margin-top: 8px;">
+        <i class="bi bi-box-arrow-in-right"></i> Entrar
+      </button>
+    </form>
+  </div>
+
+  <div class="login-footer">
+    &copy; {% now "Y" %} ERP Optimus
+  </div>
+</div>
+
+</body>
+</html>

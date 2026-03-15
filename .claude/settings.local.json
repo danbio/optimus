@@ -1,0 +1,55 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(c:/Desenvolvimento/optimus/**)",
+      "Write(c:/Desenvolvimento/optimus/Optimus/**)",
+      "Bash(python manage.py *)",
+      "Bash(pip install *)",
+      "Bash(ruff check *)",
+      "Bash(ruff format *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git log *)",
+      "WebFetch(domain:github.com)",
+      "Bash(git ls-tree:*)",
+      "WebFetch(domain:backend.intelbras.com)",
+      "Bash(python -m venv .venv)",
+      "Bash(.venv/Scripts/pip install:*)",
+      "Bash(.venv/Scripts/pip freeze:*)",
+      "Bash(.venv/Scripts/django-admin startproject:*)",
+      "Bash(.venv/Scripts/python manage.py startapp core)",
+      "Bash(.venv/Scripts/django-admin startapp:*)",
+      "Bash(.venv/Scripts/python manage.py migrate)",
+      "Bash(.venv/Scripts/python manage.py shell -c \":*)",
+      "Bash(.venv/Scripts/python manage.py makemigrations clientes)",
+      "Bash(.venv/Scripts/python manage.py check)"
+    ],
+    "additionalDirectories": [
+      "c:\\Desenvolvimento\\optimus\\Optimus\\.claude"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import json,sys,subprocess; d=json.load(sys.stdin); p=d.get('tool_input',{}).get('file_path',''); p.endswith('.py') and [subprocess.run(['ruff','format',p]),subprocess.run(['ruff','check','--fix',p])]\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import json,sys; d=json.load(sys.stdin); p=d.get('tool_input',{}).get('file_path',''); 'models.py' in p and print('[AVISO] models.py alterado — rode: python manage.py makemigrations')\""
+          }
+        ]
+      }
+    ]
+  }
+}

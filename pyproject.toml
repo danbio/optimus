@@ -1,0 +1,17 @@
+[tool.ruff]
+line-length = 160
+fix = false
+target-version = "py313"
+exclude = [".venv", ".git", "__pycache__", "migrations", "staticfiles", "media"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "DJ"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "clientes", "financeiro", "estoque", "solar", "servicos", "balcao", "ordens_servico", "pos_venda"]

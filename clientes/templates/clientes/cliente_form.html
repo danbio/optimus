@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>
+    <i class="bi bi-person-plus"></i>
+    {{ titulo }}
+    <span id="tipo-badge" class="badge badge-cinza" style="font-size: 13px; margin-left: 6px; vertical-align: middle;"></span>
+  </h1>
+  <a href="{% if object %}{% url 'clientes:detalhe' object.pk %}{% else %}{% url 'clientes:lista' %}{% endif %}"
+     class="btn-secondary">
+    <i class="bi bi-arrow-left"></i> Voltar
+  </a>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {# ── IDENTIFICAÇÃO ── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-person-badge"></i> Identificação</div>
+    <div class="card-body">
+
+      {# CPF / CNPJ — campo principal, detecta o tipo automaticamente #}
+      <div class="form-group" style="max-width: 320px;">
+        <label for="id_cpf_cnpj">
+          CPF / CNPJ <span class="obrigatorio">*</span>
+          <span id="cnpj-spinner" style="display: none; color: var(--verde); font-weight: 400; margin-left: 6px; font-size: 12px;">
+            <i class="bi bi-arrow-repeat" style="animation: spin 1s linear infinite;"></i> consultando CNPJ...
+          </span>
+        </label>
+        {{ form.cpf_cnpj }}
+        {% if form.cpf_cnpj.errors %}
+          <div class="form-error">{% for e in form.cpf_cnpj.errors %}{{ e }}{% endfor %}</div>
+        {% endif %}
+        <div class="form-ajuda" id="hint-cpf-cnpj">Digite o CPF (11 dígitos) ou CNPJ (14 dígitos) — o tipo é detectado automaticamente.</div>
+      </div>
+
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        {# Nome / Razão Social #}
+        <div class="form-group" style="flex: 2; min-width: 240px;">
+          <label for="id_nome" id="label-nome">
+            Nome Completo <span class="obrigatorio">*</span>
+          </label>
+          {{ form.nome }}
+          {% if form.nome.errors %}<div class="form-error">{% for e in form.nome.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+
+        {# Nome Fantasia — só PJ #}
+        <div class="form-group campo-pj-only" style="flex: 1; min-width: 200px; display: none;">
+          <label for="id_nome_fantasia">Nome Fantasia</label>
+          {{ form.nome_fantasia }}
+          {% if form.nome_fantasia.errors %}<div class="form-error">{% for e in form.nome_fantasia.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        {# IE — só PJ #}
+        <div class="form-group campo-pj-only" style="flex: 1; min-width: 180px; display: none;">
+          <label for="id_rg_ie">Inscrição Estadual</label>
+          {{ form.rg_ie }}
+          {% if form.rg_ie.errors %}<div class="form-error">{% for e in form.rg_ie.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+
+        {# Data de nascimento — só PF #}
+        <div class="form-group campo-pf-only" style="flex: 1; min-width: 160px;">
+          <label for="id_data_nascimento">Data de Nascimento</label>
+          {{ form.data_nascimento }}
+          {% if form.data_nascimento.errors %}<div class="form-error">{% for e in form.data_nascimento.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  {# ── CONTATO ── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-telephone"></i> Contato</div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 160px;">
+          <label for="id_celular">Celular</label>
+          {{ form.celular }}
+          {% if form.celular.errors %}<div class="form-error">{% for e in form.celular.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 160px;">
+          <label for="id_telefone">Telefone Fixo</label>
+          {{ form.telefone }}
+          {% if form.telefone.errors %}<div class="form-error">{% for e in form.telefone.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 2; min-width: 220px;">
+          <label for="id_email">E-mail</label>
+          {{ form.email }}
+          {% if form.email.errors %}<div class="form-error">{% for e in form.email.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── ENDEREÇO ── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-geo-alt"></i> Endereço</div>
+    <div class="card-body">
+
+      <div class="d-flex gap-2 align-center" style="flex-wrap: wrap; margin-bottom: 0;">
+        <div class="form-group" style="flex: 0 0 160px;">
+          <label for="id_cep">
+            CEP
+            <span id="cep-spinner" style="display: none; color: var(--verde); font-weight: 400; margin-left: 6px; font-size: 12px;">
+              <i class="bi bi-arrow-repeat" style="animation: spin 1s linear infinite;"></i> buscando...
+            </span>
+          </label>
+          {{ form.cep }}
+          {% if form.cep.errors %}<div class="form-error">{% for e in form.cep.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 2; min-width: 200px;">
+          <label for="id_logradouro">Logradouro</label>
+          {{ form.logradouro }}
+        </div>
+        <div class="form-group" style="flex: 0 0 90px;">
+          <label for="id_numero">Número</label>
+          {{ form.numero }}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 140px;">
+          <label for="id_complemento">Complemento</label>
+          {{ form.complemento }}
+        </div>
+      </div>
+
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 160px;">
+          <label for="id_bairro">Bairro</label>
+          {{ form.bairro }}
+        </div>
+        <div class="form-group" style="flex: 2; min-width: 160px;">
+          <label for="id_cidade">Cidade</label>
+          {{ form.cidade }}
+        </div>
+        <div class="form-group" style="flex: 0 0 80px;">
+          <label for="id_estado">UF</label>
+          {{ form.estado }}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  {# ── OUTROS ── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-card-text"></i> Outros</div>
+    <div class="card-body">
+      <div class="d-flex gap-2 align-center" style="margin-bottom: 16px;">
+        <label class="toggle">
+          {{ form.ativo }}
+          <span class="toggle-slider"></span>
+        </label>
+        <span style="font-size: 14px; font-weight: 600; color: var(--texto-titulo);">Cliente ativo</span>
+      </div>
+      <div class="form-group mb-0">
+        <label for="id_observacoes">Observações</label>
+        {{ form.observacoes }}
+      </div>
+    </div>
+  </div>
+
+  {# ── AÇÕES ── #}
+  <div class="d-flex gap-2" style="margin-top: 8px;">
+    <button type="submit" class="btn-primary">
+      <i class="bi bi-check-lg"></i> {{ acao }}
+    </button>
+    <a href="{% if object %}{% url 'clientes:detalhe' object.pk %}{% else %}{% url 'clientes:lista' %}{% endif %}"
+       class="btn-secondary">
+      <i class="bi bi-x"></i> Cancelar
+    </a>
+  </div>
+
+</form>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // ── Máscara CPF/CNPJ ──────────────────────────────────────
+  function mascaraCpfCnpj(v) {
+    v = v.replace(/\D/g, '').substring(0, 14);
+    if (v.length <= 11) {
+      v = v.replace(/(\d{3})(\d)/, '$1.$2');
+      v = v.replace(/(\d{3})(\d)/, '$1.$2');
+      v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    } else {
+      v = v.replace(/^(\d{2})(\d)/, '$1.$2');
+      v = v.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+      v = v.replace(/\.(\d{3})(\d)/, '.$1/$2');
+      v = v.replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+    }
+    return v;
+  }
+
+  // ── Máscara Telefone ──────────────────────────────────────
+  function mascaraTelefone(v, celular) {
+    v = v.replace(/\D/g, '').substring(0, celular ? 11 : 10);
+    v = v.replace(/^(\d{2})(\d)/, '($1) $2');
+    if (celular || v.replace(/\D/g, '').length === 11) {
+      v = v.replace(/(\d{5})(\d{1,4})$/, '$1-$2');
+    } else {
+      v = v.replace(/(\d{4})(\d{1,4})$/, '$1-$2');
+    }
+    return v;
+  }
+
+  // ── Máscara CEP ───────────────────────────────────────────
+  function mascaraCep(v) {
+    v = v.replace(/\D/g, '').substring(0, 8);
+    return v.replace(/(\d{5})(\d{1,3})$/, '$1-$2');
+  }
+
+  // ── Atualiza campos PF/PJ ─────────────────────────────────
+  function atualizarTipo() {
+    var digits = document.getElementById('id_cpf_cnpj').value.replace(/\D/g, '');
+    var isPJ = digits.length > 11 && digits.length <= 14;
+    var semTipo = digits.length === 0;
+
+    document.querySelectorAll('.campo-pf-only').forEach(function (el) {
+      el.style.display = (semTipo || !isPJ) ? '' : 'none';
+    });
+    document.querySelectorAll('.campo-pj-only').forEach(function (el) {
+      el.style.display = isPJ ? '' : 'none';
+    });
+
+    var labelNome = document.getElementById('label-nome');
+    if (labelNome) {
+      labelNome.innerHTML = isPJ
+        ? 'Razão Social <span class="obrigatorio">*</span>'
+        : 'Nome Completo <span class="obrigatorio">*</span>';
+    }
+    var badge = document.getElementById('tipo-badge');
+    if (badge) {
+      if (semTipo) {
+        badge.textContent = '';
+        badge.className = 'badge badge-cinza';
+      } else if (!isPJ) {
+        badge.textContent = 'Pessoa Física';
+        badge.className = 'badge badge-info';
+      } else {
+        badge.textContent = 'Pessoa Jurídica';
+        badge.className = 'badge badge-verde';
+      }
+    }
+
+    var hint = document.getElementById('hint-cpf-cnpj');
+    if (hint) hint.style.display = semTipo ? '' : 'none';
+  }
+
+  // ── Busca de CNPJ via BrasilAPI ──────────────────────────────
+  function buscarCnpj(cnpj) {
+    var spinner = document.getElementById('cnpj-spinner');
+    if (spinner) spinner.style.display = '';
+
+    fetch('{% url "clientes:buscar_cnpj" %}?cnpj=' + cnpj)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.erro) return;
+        if (data.razao_social) setVal('id_nome', data.razao_social);
+        if (data.nome_fantasia) setVal('id_nome_fantasia', data.nome_fantasia);
+        if (data.email) setVal('id_email', data.email);
+        if (data.cep && data.cep.length === 8) {
+          setVal('id_cep', data.cep.substring(0, 5) + '-' + data.cep.substring(5));
+          if (data.logradouro) setVal('id_logradouro', data.logradouro);
+          if (data.numero) setVal('id_numero', data.numero);
+          if (data.complemento) setVal('id_complemento', data.complemento);
+          if (data.bairro) setVal('id_bairro', data.bairro);
+          if (data.cidade) setVal('id_cidade', data.cidade);
+          if (data.estado) setVal('id_estado', data.estado);
+        }
+        if (data.telefone) {
+          var isCelular = data.telefone.length === 11;
+          var fone = mascaraTelefone(data.telefone, isCelular);
+          var campoFone = isCelular
+            ? document.getElementById('id_celular')
+            : document.getElementById('id_telefone');
+          if (campoFone && !campoFone.value) campoFone.value = fone;
+        }
+      })
+      .catch(function () {})
+      .finally(function () { if (spinner) spinner.style.display = 'none'; });
+  }
+
+  // ── Busca de CEP via ViaCEP ────────────────────────────────
+  function buscarCep(cep) {
+    var spinner = document.getElementById('cep-spinner');
+    if (spinner) spinner.style.display = '';
+
+    fetch('/clientes/buscar-cep/?cep=' + cep)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.erro) {
+          setVal('id_logradouro', data.logradouro);
+          setVal('id_bairro', data.bairro);
+          setVal('id_cidade', data.cidade);
+          setVal('id_estado', data.estado);
+          document.getElementById('id_numero') && document.getElementById('id_numero').focus();
+        }
+      })
+      .catch(function () {})
+      .finally(function () { if (spinner) spinner.style.display = 'none'; });
+  }
+
+  function setVal(id, val) {
+    var el = document.getElementById(id);
+    if (el && val) el.value = val;
+  }
+
+  // ── Event listeners ───────────────────────────────────────
+  var campoCpfCnpj = document.getElementById('id_cpf_cnpj');
+  if (campoCpfCnpj) {
+    campoCpfCnpj.addEventListener('input', function () {
+      var pos = this.selectionStart;
+      var old = this.value;
+      this.value = mascaraCpfCnpj(this.value);
+      // Corrige cursor após formatação
+      if (this.value.length !== old.length) pos += this.value.length - old.length;
+      try { this.setSelectionRange(pos, pos); } catch (e) {}
+      atualizarTipo();
+    });
+    campoCpfCnpj.addEventListener('blur', function () {
+      var digits = this.value.replace(/\D/g, '');
+      if (digits.length === 14) {
+        var nome = document.getElementById('id_nome');
+        if (!nome || !nome.value.trim()) {
+          buscarCnpj(digits);
+        }
+      }
+    });
+    // Ao carregar (edição), já aplica estado correto
+    atualizarTipo();
+  }
+
+  var campoCelular = document.getElementById('id_celular');
+  if (campoCelular) {
+    campoCelular.addEventListener('input', function () {
+      var digits = this.value.replace(/\D/g, '');
+      this.value = mascaraTelefone(this.value, digits.length > 10);
+    });
+  }
+
+  var campoTelefone = document.getElementById('id_telefone');
+  if (campoTelefone) {
+    campoTelefone.addEventListener('input', function () {
+      this.value = mascaraTelefone(this.value, false);
+    });
+  }
+
+  var campoCep = document.getElementById('id_cep');
+  if (campoCep) {
+    campoCep.addEventListener('input', function () {
+      this.value = mascaraCep(this.value);
+    });
+    campoCep.addEventListener('blur', function () {
+      var digits = this.value.replace(/\D/g, '');
+      if (digits.length === 8) buscarCep(digits);
+    });
+  }
+
+})();
+</script>
+{% endblock %}

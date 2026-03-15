@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Clientes{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-people"></i> Clientes</h1>
+  <a href="{% url 'clientes:novo' %}" class="btn-primary">
+    <i class="bi bi-plus-lg"></i> Novo Cliente
+  </a>
+</div>
+
+{# Barra de busca e filtros #}
+<form method="get" class="card" style="padding: 16px 20px; margin-bottom: 20px;">
+  <div class="d-flex gap-2 align-center" style="flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 220px; position: relative;">
+      <i class="bi bi-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--texto-corpo);"></i>
+      <input type="text" name="q" value="{{ q }}" placeholder="Buscar por nome, CPF/CNPJ, e-mail ou cidade..."
+             class="form-control" style="padding-left: 36px;" autocomplete="off">
+    </div>
+
+    <div class="d-flex gap-1 align-center" style="flex-shrink: 0;">
+      <a href="?q={{ q }}&ativo={{ ativo_filtro }}"
+         class="btn-secondary btn-sm{% if not tipo_filtro %} btn-ativo{% endif %}">Todos</a>
+      <a href="?q={{ q }}&tipo=PF&ativo={{ ativo_filtro }}"
+         class="btn-secondary btn-sm{% if tipo_filtro == 'PF' %} btn-ativo{% endif %}">
+        <i class="bi bi-person"></i> PF
+      </a>
+      <a href="?q={{ q }}&tipo=PJ&ativo={{ ativo_filtro }}"
+         class="btn-secondary btn-sm{% if tipo_filtro == 'PJ' %} btn-ativo{% endif %}">
+        <i class="bi bi-building"></i> PJ
+      </a>
+    </div>
+
+    <div class="d-flex gap-1 align-center" style="flex-shrink: 0;">
+      <a href="?q={{ q }}&tipo={{ tipo_filtro }}&ativo=1"
+         class="btn-secondary btn-sm{% if ativo_filtro != '0' %} btn-ativo{% endif %}">Ativos</a>
+      <a href="?q={{ q }}&tipo={{ tipo_filtro }}&ativo=0"
+         class="btn-secondary btn-sm{% if ativo_filtro == '0' %} btn-ativo{% endif %}">Inativos</a>
+    </div>
+
+    {% if q %}<button type="submit" class="btn-primary btn-sm"><i class="bi bi-search"></i> Buscar</button>{% endif %}
+  </div>
+</form>
+
+{# Tabela #}
+<div class="card" style="overflow: hidden; padding: 0;">
+  {% if clientes %}
+  <table class="tabela" style="margin: 0;">
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th style="width: 50px;">Tipo</th>
+        <th>CPF / CNPJ</th>
+        <th>Cidade / UF</th>
+        <th>Contato</th>
+        <th style="width: 60px; text-align: center;">Status</th>
+        <th style="width: 90px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in clientes %}
+      <tr>
+        <td>
+          <a href="{% url 'clientes:detalhe' c.pk %}" style="font-weight: 600; color: var(--texto-titulo);">
+            {{ c.nome }}
+          </a>
+          {% if c.nome_fantasia %}
+            <div style="font-size: 12px; color: var(--texto-corpo); margin-top: 2px;">{{ c.nome_fantasia }}</div>
+          {% endif %}
+        </td>
+        <td>
+          {% if c.tipo == 'PF' %}
+            <span class="badge badge-info">PF</span>
+          {% else %}
+            <span class="badge badge-verde">PJ</span>
+          {% endif %}
+        </td>
+        <td style="font-family: monospace; font-size: 14px;">{{ c.cpf_cnpj }}</td>
+        <td>
+          {% if c.cidade %}{{ c.cidade }}{% if c.estado %}/{{ c.estado }}{% endif %}{% else %}<span class="col-off">—</span>{% endif %}
+        </td>
+        <td>
+          {% if c.telefone_principal %}
+            <i class="bi bi-{% if c.celular %}phone{% else %}telephone{% endif %}" style="font-size: 13px; color: var(--texto-corpo);"></i>
+            {{ c.telefone_principal }}
+          {% elif c.email %}
+            <i class="bi bi-envelope" style="font-size: 13px; color: var(--texto-corpo);"></i>
+            {{ c.email }}
+          {% else %}
+            <span class="col-off">—</span>
+          {% endif %}
+        </td>
+        <td style="text-align: center;">
+          {% if c.ativo %}
+            <span class="badge badge-verde">Ativo</span>
+          {% else %}
+            <span class="badge badge-cinza">Inativo</span>
+          {% endif %}
+        </td>
+        <td style="text-align: right;">
+          <a href="{% url 'clientes:detalhe' c.pk %}" class="btn-secondary btn-sm" title="Ver detalhes">
+            <i class="bi bi-eye"></i>
+          </a>
+          <a href="{% url 'clientes:editar' c.pk %}" class="btn-secondary btn-sm" title="Editar" style="margin-left: 4px;">
+            <i class="bi bi-pencil"></i>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {# Paginação #}
+  {% if is_paginated %}
+  <div style="padding: 12px 20px; border-top: 1px solid var(--borda-fraca);">
+    <div class="paginacao">
+      {% if page_obj.has_previous %}
+        <a href="?q={{ q }}&tipo={{ tipo_filtro }}&ativo={{ ativo_filtro }}&page={{ page_obj.previous_page_number }}">
+          <i class="bi bi-chevron-left"></i>
+        </a>
+      {% endif %}
+      {% for num in paginator.page_range %}
+        {% if page_obj.number == num %}
+          <span class="atual">{{ num }}</span>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+          <a href="?q={{ q }}&tipo={{ tipo_filtro }}&ativo={{ ativo_filtro }}&page={{ num }}">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a href="?q={{ q }}&tipo={{ tipo_filtro }}&ativo={{ ativo_filtro }}&page={{ page_obj.next_page_number }}">
+          <i class="bi bi-chevron-right"></i>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div style="padding: 60px 20px; text-align: center; color: var(--texto-corpo);">
+    <i class="bi bi-people" style="font-size: 40px; opacity: 0.3; display: block; margin-bottom: 12px;"></i>
+    {% if q %}
+      <p style="margin: 0; font-size: 15px;">Nenhum cliente encontrado para <strong>"{{ q }}"</strong>.</p>
+      <a href="{% url 'clientes:lista' %}" style="font-size: 14px; margin-top: 8px; display: inline-block;">Limpar busca</a>
+    {% else %}
+      <p style="margin: 0; font-size: 15px;">Nenhum cliente cadastrado ainda.</p>
+      <a href="{% url 'clientes:novo' %}" class="btn-primary" style="margin-top: 16px; display: inline-flex;">
+        <i class="bi bi-plus-lg"></i> Cadastrar primeiro cliente
+      </a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{# Rodapé com contagem #}
+<div style="color: var(--texto-corpo); font-size: 13px; margin-top: -12px;">
+  {% if ativo_filtro == '0' %}
+    {{ total_inativos }} cliente{{ total_inativos|pluralize }} inativo{{ total_inativos|pluralize }}
+  {% else %}
+    {{ total_ativos }} cliente{{ total_ativos|pluralize }} ativo{{ total_ativos|pluralize }}
+    {% if total_inativos %} &nbsp;·&nbsp; <a href="?ativo=0">{{ total_inativos }} inativo{{ total_inativos|pluralize }}</a>{% endif %}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .btn-ativo {
+    background: var(--verde);
+    color: #fff !important;
+    border-color: var(--verde);
+  }
+  .btn-ativo:hover { background: var(--verde-escuro); }
+</style>
+{% endblock %}

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}{{ cliente.nome }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 style="gap: 12px; flex-wrap: wrap;">
+    <i class="bi bi-person-circle"></i>
+    {{ cliente.nome }}
+    {% if cliente.tipo == 'PF' %}
+      <span class="badge badge-info">Pessoa Física</span>
+    {% else %}
+      <span class="badge badge-verde">Pessoa Jurídica</span>
+    {% endif %}
+    {% if cliente.ativo %}
+      <span class="badge badge-verde">Ativo</span>
+    {% else %}
+      <span class="badge badge-cinza">Inativo</span>
+    {% endif %}
+  </h1>
+  <div class="d-flex gap-1">
+    <a href="{% url 'clientes:editar' cliente.pk %}" class="btn-primary btn-sm">
+      <i class="bi bi-pencil"></i> Editar
+    </a>
+    <a href="{% url 'clientes:excluir' cliente.pk %}" class="btn-secondary btn-sm btn-danger">
+      <i class="bi bi-trash"></i>
+    </a>
+    <a href="{% url 'clientes:lista' %}" class="btn-secondary btn-sm" style="margin-left: 8px;">
+      <i class="bi bi-arrow-left"></i> Lista
+    </a>
+  </div>
+</div>
+
+<div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-start;">
+
+  {# Coluna esquerda #}
+  <div style="flex: 2; min-width: 300px;">
+
+    {# Identificação #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-person-badge"></i> Identificação</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela" style="margin: 0;">
+          <tbody>
+            <tr>
+              <td class="col-titulo" style="width: 160px; border-left: none;">CPF / CNPJ</td>
+              <td style="font-family: monospace; font-weight: 600; border-right: none;">{{ cliente.cpf_cnpj }}</td>
+            </tr>
+            {% if cliente.nome_fantasia %}
+            <tr>
+              <td class="col-titulo" style="border-left: none;">Nome Fantasia</td>
+              <td style="border-right: none;">{{ cliente.nome_fantasia }}</td>
+            </tr>
+            {% endif %}
+            {% if cliente.rg_ie %}
+            <tr>
+              <td class="col-titulo" style="border-left: none;">{% if cliente.tipo == 'PF' %}RG{% else %}Inscrição Estadual{% endif %}</td>
+              <td style="border-right: none;">{{ cliente.rg_ie }}</td>
+            </tr>
+            {% endif %}
+            {% if cliente.data_nascimento %}
+            <tr>
+              <td class="col-titulo" style="border-left: none;">Data de Nascimento</td>
+              <td style="border-right: none;">{{ cliente.data_nascimento|date:"d/m/Y" }}</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# Contato #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-telephone"></i> Contato</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela" style="margin: 0;">
+          <tbody>
+            {% if cliente.celular %}
+            <tr>
+              <td class="col-titulo" style="width: 160px; border-left: none;">Celular</td>
+              <td style="border-right: none;">
+                <i class="bi bi-phone" style="color: var(--verde);"></i>
+                <a href="https://wa.me/55{{ cliente.celular|cut:' '|cut:'('|cut:')'|cut:'-' }}" target="_blank" style="margin-left: 4px;">
+                  {{ cliente.celular }}
+                </a>
+              </td>
+            </tr>
+            {% endif %}
+            {% if cliente.telefone %}
+            <tr>
+              <td class="col-titulo" style="border-left: none;">Telefone</td>
+              <td style="border-right: none;">
+                <i class="bi bi-telephone" style="color: var(--texto-corpo);"></i>
+                <span style="margin-left: 4px;">{{ cliente.telefone }}</span>
+              </td>
+            </tr>
+            {% endif %}
+            {% if cliente.email %}
+            <tr>
+              <td class="col-titulo" style="border-left: none;">E-mail</td>
+              <td style="border-right: none;">
+                <i class="bi bi-envelope" style="color: var(--texto-corpo);"></i>
+                <a href="mailto:{{ cliente.email }}" style="margin-left: 4px;">{{ cliente.email }}</a>
+              </td>
+            </tr>
+            {% endif %}
+            {% if not cliente.celular and not cliente.telefone and not cliente.email %}
+            <tr>
+              <td colspan="2" style="text-align: center; color: var(--texto-off); border-left: none; border-right: none; padding: 20px;">
+                Nenhum contato informado.
+              </td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# Endereço #}
+    {% if cliente.cep or cliente.logradouro or cliente.cidade %}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-geo-alt"></i> Endereço</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela" style="margin: 0;">
+          <tbody>
+            {% if cliente.logradouro %}
+            <tr>
+              <td class="col-titulo" style="width: 160px; border-left: none;">Logradouro</td>
+              <td style="border-right: none;">
+                {{ cliente.logradouro }}{% if cliente.numero %}, {{ cliente.numero }}{% endif %}
+                {% if cliente.complemento %} — {{ cliente.complemento }}{% endif %}
+              </td>
+            </tr>
+            {% endif %}
+            {% if cliente.bairro %}
+            <tr>
+              <td class="col-titulo" style="border-left: none;">Bairro</td>
+              <td style="border-right: none;">{{ cliente.bairro }}</td>
+            </tr>
+            {% endif %}
+            {% if cliente.cidade %}
+            <tr>
+              <td class="col-titulo" style="border-left: none;">Cidade / UF</td>
+              <td style="border-right: none;">{{ cliente.cidade }}{% if cliente.estado %}/{{ cliente.estado }}{% endif %}</td>
+            </tr>
+            {% endif %}
+            {% if cliente.cep %}
+            <tr>
+              <td class="col-titulo" style="border-left: none;">CEP</td>
+              <td style="border-right: none; font-family: monospace;">{{ cliente.cep }}</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Observações #}
+    {% if cliente.observacoes %}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-card-text"></i> Observações</div>
+      <div class="card-body">
+        <p style="margin: 0; color: var(--texto-corpo); white-space: pre-line; font-size: 14px;">{{ cliente.observacoes }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  {# Coluna direita — auditoria e ações futuras #}
+  <div style="flex: 1; min-width: 220px;">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-info-circle"></i> Registro</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela" style="margin: 0;">
+          <tbody>
+            <tr>
+              <td class="col-titulo" style="border-left: none; font-size: 13px;">Cadastrado em</td>
+              <td style="border-right: none; font-size: 13px;">{{ cliente.criado_em|date:"d/m/Y H:i" }}</td>
+            </tr>
+            <tr>
+              <td class="col-titulo" style="border-left: none; font-size: 13px;">Atualizado em</td>
+              <td style="border-right: none; font-size: 13px;">{{ cliente.atualizado_em|date:"d/m/Y H:i" }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
