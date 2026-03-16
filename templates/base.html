@@ -48,9 +48,22 @@
   </a>
 
   <div class="sidebar-section">Gestão</div>
-  <a href="#" {% if 'estoque' in request.resolver_match.app_name %}class="active"{% endif %}>
-    <i class="bi bi-boxes"></i> Estoque
-  </a>
+  <details {% if 'estoque' in request.resolver_match.app_name %}open{% endif %}>
+    <summary>
+      <i class="bi bi-boxes"></i> Estoque
+      <i class="bi bi-chevron-right chevron"></i>
+    </summary>
+    <div class="sidebar-sub">
+      <a href="{% url 'estoque:lista' %}"
+         {% if 'estoque' in request.resolver_match.app_name and request.resolver_match.url_name != 'importar' %}class="active"{% endif %}>
+        <i class="bi bi-box-seam"></i> Produtos
+      </a>
+      <a href="{% url 'estoque:importar' %}"
+         {% if 'estoque' in request.resolver_match.app_name and request.resolver_match.url_name == 'importar' %}class="active"{% endif %}>
+        <i class="bi bi-upload"></i> Importar Planilha
+      </a>
+    </div>
+  </details>
   <a href="#" {% if 'financeiro' in request.resolver_match.app_name %}class="active"{% endif %}>
     <i class="bi bi-cash-coin"></i> Financeiro
   </a>

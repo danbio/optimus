@@ -14,9 +14,15 @@ env/
 *.log
 db.sqlite3
 db.sqlite3-journal
+*.db
 media/
 staticfiles/
 local_settings.py
+
+# Arquivos de dados / planilhas importadas
+*.xlsb
+*.xlsx
+*.xls
 
 # Environment
 .env

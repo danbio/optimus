@@ -13,6 +13,7 @@ urlpatterns = [
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
     # Apps
     path("clientes/", include("clientes.urls")),
+    path("estoque/", include("estoque.urls")),
     # Raiz redireciona para dashboard (exige login)
     path("", DashboardView.as_view(), name="home"),
 ]

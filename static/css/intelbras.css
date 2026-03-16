@@ -352,6 +352,52 @@ select.form-control { cursor: pointer; }
 .toggle input:checked + .toggle-slider { background: var(--verde); }
 .toggle input:checked + .toggle-slider::before { transform: translateX(22px); }
 
+/* ── SIDEBAR ACORDEÃO ── */
+.sidebar details > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  color: #fff;
+  font-size: 15px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  cursor: pointer;
+  list-style: none;
+  transition: background 0.2s;
+  user-select: none;
+}
+.sidebar details > summary::-webkit-details-marker { display: none; }
+.sidebar details > summary::marker { content: none; }
+.sidebar details > summary:hover { background: var(--verde-claro); color: #fff; }
+.sidebar details > summary i.chevron {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.7;
+  transition: transform 0.25s;
+}
+.sidebar details[open] > summary i.chevron { transform: rotate(90deg); }
+.sidebar details[open] > summary { background: rgba(0,0,0,0.12); }
+.sidebar-sub a {
+  padding-left: 38px !important;
+  font-size: 14px;
+  background: rgba(0,0,0,0.08);
+}
+.sidebar-sub a:hover { background: var(--verde-claro) !important; }
+.sidebar-sub a.active {
+  background: var(--verde-escuro) !important;
+  font-weight: 600;
+  border-left: 4px solid #fff;
+  padding-left: 34px !important;
+}
+
+/* ── BOTÃO FILTRO ATIVO ── */
+.btn-ativo {
+  background: var(--verde) !important;
+  color: #fff !important;
+  border-color: var(--verde) !important;
+}
+.btn-ativo:hover { background: var(--verde-escuro) !important; }
+
 /* ── PAGINAÇÃO ── */
 .paginacao { display: flex; gap: 4px; align-items: center; margin-top: 16px; }
 .paginacao a, .paginacao span {

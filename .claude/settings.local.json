@@ -24,7 +24,13 @@
       "Bash(.venv/Scripts/python manage.py migrate)",
       "Bash(.venv/Scripts/python manage.py shell -c \":*)",
       "Bash(.venv/Scripts/python manage.py makemigrations clientes)",
-      "Bash(.venv/Scripts/python manage.py check)"
+      "Bash(.venv/Scripts/python manage.py check)",
+      "Bash(.venv/Scripts/python manage.py makemigrations estoque)",
+      "Bash(.venv/Scripts/python -c \"import openpyxl; print\\(''openpyxl'', openpyxl.__version__\\)\")",
+      "Bash(.venv/Scripts/python -c \"import pyxlsb; print\\(''pyxlsb ok''\\)\")",
+      "Read(//c/Users/danub/**)",
+      "Bash(.venv/Scripts/python.exe -c \":*)",
+      "Bash(.venv/Scripts/python.exe manage.py test estoque -v 2)"
     ],
     "additionalDirectories": [
       "c:\\Desenvolvimento\\optimus\\Optimus\\.claude"
