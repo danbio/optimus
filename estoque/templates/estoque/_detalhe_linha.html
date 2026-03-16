@@ -1,0 +1,7 @@
+{% if valor %}<div style="padding: 10px 20px; border-bottom: 1px solid var(--borda-fraca); display: flex; align-items: baseline; gap: 12px;">
+  <span style="width: 160px; font-weight: 600; color: var(--texto-titulo); flex-shrink: 0; font-size: 13px;">{{ label }}</span>
+  <span style="{% if mono %}font-family: monospace;{% endif %} color: var(--texto-titulo);">{{ valor }}</span>
+</div>{% else %}<div style="padding: 10px 20px; border-bottom: 1px solid var(--borda-fraca); display: flex; align-items: baseline; gap: 12px;">
+  <span style="width: 160px; font-weight: 600; color: var(--texto-titulo); flex-shrink: 0; font-size: 13px;">{{ label }}</span>
+  <span class="col-off">—</span>
+</div>{% endif %}

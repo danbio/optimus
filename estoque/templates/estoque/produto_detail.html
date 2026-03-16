@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load estoque_extras %}
+{% block title %}{{ produto.codigo }} — {{ produto.descricao|truncatechars:50 }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>
+    <i class="bi bi-box-seam"></i>
+    <span style="font-family: monospace; font-size: 18px; color: var(--texto-corpo);">{{ produto.codigo }}</span>
+    &nbsp;{{ produto.descricao|truncatechars:80 }}
+    {% if produto.ativo %}
+      <span class="badge badge-verde" style="font-size: 13px; vertical-align: middle; margin-left: 6px;">Ativo</span>
+    {% else %}
+      <span class="badge badge-cinza" style="font-size: 13px; vertical-align: middle; margin-left: 6px;">Inativo</span>
+    {% endif %}
+  </h1>
+  <div class="d-flex gap-2">
+    <a href="{% url 'estoque:editar' produto.pk %}" class="btn-primary">
+      <i class="bi bi-pencil"></i> Editar
+    </a>
+    <a href="{% url 'estoque:excluir' produto.pk %}" class="btn-secondary" style="color: var(--erro);">
+      <i class="bi bi-trash"></i> Excluir
+    </a>
+    <a href="{% url 'estoque:lista' %}" class="btn-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+</div>
+
+<div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-start;">
+
+  {# ── Coluna Esquerda ── #}
+  <div style="flex: 1; min-width: 280px;">
+
+    <div class="card">
+      <div class="card-header"><i class="bi bi-tag"></i> Classificação</div>
+      <div class="card-body" style="padding: 0;">
+        {% include "estoque/_detalhe_linha.html" with label="BU" valor=produto.bu %}
+        {% include "estoque/_detalhe_linha.html" with label="Segmento" valor=produto.segmento %}
+        {% include "estoque/_detalhe_linha.html" with label="Família" valor=produto.familia %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="bi bi-receipt"></i> Tributação</div>
+      <div class="card-body" style="padding: 0;">
+        {% include "estoque/_detalhe_linha.html" with label="IPI" valor=produto.ipi|pct %}
+        {% include "estoque/_detalhe_linha.html" with label="ICMS" valor=produto.icms|pct %}
+        {% include "estoque/_detalhe_linha.html" with label="NCM" valor=produto.ncm mono=True %}
+        {% include "estoque/_detalhe_linha.html" with label="EAN" valor=produto.ean mono=True %}
+      </div>
+    </div>
+
+  </div>
+
+  {# ── Coluna Direita ── #}
+  <div style="flex: 1; min-width: 280px;">
+
+    <div class="card">
+      <div class="card-header"><i class="bi bi-currency-dollar"></i> Preços</div>
+      <div class="card-body" style="padding: 0;">
+        <div style="padding: 12px 20px; border-bottom: 1px solid var(--borda-fraca); display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 600; color: var(--texto-titulo);">PSD — Custo</span>
+          <span style="font-family: monospace; font-size: 15px;">{{ produto.psd|brl }}</span>
+        </div>
+        <div style="padding: 12px 20px; border-bottom: 1px solid var(--borda-fraca); display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 600; color: var(--texto-titulo);">PSCF — Venda</span>
+          <span style="font-family: monospace; font-size: 18px; font-weight: 700; color: var(--verde);">{{ produto.pscf|brl }}</span>
+        </div>
+        {% if produto.margem is not None %}
+        <div style="padding: 12px 20px; border-bottom: 1px solid var(--borda-fraca); display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 600; color: var(--texto-titulo);">Margem bruta</span>
+          <span style="font-family: monospace; font-size: 15px; color: {% if produto.margem >= 20 %}var(--verde){% elif produto.margem >= 10 %}var(--alerta){% else %}var(--erro){% endif %};">
+            {{ produto.margem }}%
+          </span>
+        </div>
+        {% endif %}
+        {% include "estoque/_detalhe_linha.html" with label="Controle de venda" valor=produto.preco_referencia %}
+        {% include "estoque/_detalhe_linha.html" with label="Qtd. múltipla" valor=produto.qtd_multipla %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% if produto.observacoes %}
+<div class="card">
+  <div class="card-header"><i class="bi bi-card-text"></i> Observações</div>
+  <div class="card-body">{{ produto.observacoes|linebreaks }}</div>
+</div>
+{% endif %}
+
+<div style="margin-top: 4px; font-size: 12px; color: var(--texto-corpo);">
+  Criado em {{ produto.criado_em|date:"d/m/Y H:i" }} &nbsp;·&nbsp;
+  Atualizado em {{ produto.atualizado_em|date:"d/m/Y H:i" }}
+</div>
+{% endblock %}

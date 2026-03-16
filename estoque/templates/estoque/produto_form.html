@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-box-seam"></i> {{ titulo }}</h1>
+  <a href="{% if object %}{% url 'estoque:detalhe' object.pk %}{% else %}{% url 'estoque:lista' %}{% endif %}"
+     class="btn-secondary">
+    <i class="bi bi-arrow-left"></i> Voltar
+  </a>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {# ── IDENTIFICAÇÃO ── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-upc-scan"></i> Identificação</div>
+    <div class="card-body">
+
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 0 0 160px;">
+          <label for="id_codigo">Código <span class="obrigatorio">*</span></label>
+          {{ form.codigo }}
+          {% if form.codigo.errors %}<div class="form-error">{% for e in form.codigo.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 3; min-width: 280px;">
+          <label for="id_descricao">Descrição <span class="obrigatorio">*</span></label>
+          {{ form.descricao }}
+          {% if form.descricao.errors %}<div class="form-error">{% for e in form.descricao.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 180px;">
+          <label for="id_bu">BU</label>
+          {{ form.bu }}
+          {% if form.bu.errors %}<div class="form-error">{% for e in form.bu.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 180px;">
+          <label for="id_segmento">Segmento</label>
+          {{ form.segmento }}
+          {% if form.segmento.errors %}<div class="form-error">{% for e in form.segmento.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 180px;">
+          <label for="id_familia">Família</label>
+          {{ form.familia }}
+          {% if form.familia.errors %}<div class="form-error">{% for e in form.familia.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  {# ── PREÇOS ── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-currency-dollar"></i> Preços</div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 160px;">
+          <label for="id_psd">PSD — Preço de Custo</label>
+          {{ form.psd }}
+          {% if form.psd.errors %}<div class="form-error">{% for e in form.psd.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 160px;">
+          <label for="id_pscf">PSCF — Preço de Venda</label>
+          {{ form.pscf }}
+          {% if form.pscf.errors %}<div class="form-error">{% for e in form.pscf.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 180px;">
+          <label for="id_preco_referencia">Controle de venda</label>
+          {{ form.preco_referencia }}
+          {% if form.preco_referencia.errors %}<div class="form-error">{% for e in form.preco_referencia.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 0 0 140px;">
+          <label for="id_qtd_multipla">Qtd. múltipla</label>
+          {{ form.qtd_multipla }}
+          {% if form.qtd_multipla.errors %}<div class="form-error">{% for e in form.qtd_multipla.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── TRIBUTAÇÃO ── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-receipt"></i> Tributação</div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 0 0 120px;">
+          <label for="id_ipi">IPI (%)</label>
+          {{ form.ipi }}
+          {% if form.ipi.errors %}<div class="form-error">{% for e in form.ipi.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 0 0 120px;">
+          <label for="id_icms">ICMS (%)</label>
+          {{ form.icms }}
+          {% if form.icms.errors %}<div class="form-error">{% for e in form.icms.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 160px;">
+          <label for="id_ncm">NCM</label>
+          {{ form.ncm }}
+          {% if form.ncm.errors %}<div class="form-error">{% for e in form.ncm.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 200px;">
+          <label for="id_ean">EAN / GTIN</label>
+          {{ form.ean }}
+          {% if form.ean.errors %}<div class="form-error">{% for e in form.ean.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── OUTROS ── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-card-text"></i> Outros</div>
+    <div class="card-body">
+      <div class="d-flex gap-2 align-center" style="margin-bottom: 16px;">
+        <label class="toggle">
+          {{ form.ativo }}
+          <span class="toggle-slider"></span>
+        </label>
+        <span style="font-size: 14px; font-weight: 600; color: var(--texto-titulo);">Produto ativo</span>
+      </div>
+      <div class="form-group mb-0">
+        <label for="id_observacoes">Observações</label>
+        {{ form.observacoes }}
+      </div>
+    </div>
+  </div>
+
+  {# ── AÇÕES ── #}
+  <div class="d-flex gap-2" style="margin-top: 8px;">
+    <button type="submit" class="btn-primary">
+      <i class="bi bi-check-lg"></i> {{ acao }}
+    </button>
+    <a href="{% if object %}{% url 'estoque:detalhe' object.pk %}{% else %}{% url 'estoque:lista' %}{% endif %}"
+       class="btn-secondary">
+      <i class="bi bi-x"></i> Cancelar
+    </a>
+  </div>
+
+</form>
+{% endblock %}
