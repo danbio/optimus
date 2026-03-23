@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Excluir {{ object.numero }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-trash"></i> Excluir Proposta</h1>
+</div>
+
+<div class="card" style="max-width: 500px;">
+  <div class="card-body">
+    <p style="font-size: 15px; margin-bottom: 4px;">
+      Confirma a exclusão da proposta <strong>{{ object.numero }}</strong>?
+    </p>
+    <p style="color: var(--texto-corpo); font-size: 13px;">
+      Cliente: {{ object.cliente.nome }} · {{ object.get_tipo_servico_display }}
+    </p>
+    <p style="color: var(--erro); font-size: 13px;">Esta ação não pode ser desfeita.</p>
+    <div class="d-flex gap-2" style="margin-top: 16px;">
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn-primary" style="background: var(--erro); border-color: var(--erro);">
+          <i class="bi bi-trash"></i> Confirmar exclusão
+        </button>
+      </form>
+      <a href="{% url 'servicos:detalhe' object.pk %}" class="btn-secondary">
+        <i class="bi bi-arrow-left"></i> Cancelar
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

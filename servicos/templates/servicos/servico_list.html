@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Catálogo de Serviços{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-tools"></i> Catálogo de Serviços</h1>
+  <div class="d-flex gap-1">
+    <a href="{% url 'servicos:lista' %}" class="btn-secondary">
+      <i class="bi bi-file-text"></i> Propostas
+    </a>
+    <a href="{% url 'servicos:catalogo_novo' %}" class="btn-primary">
+      <i class="bi bi-plus-lg"></i> Novo Serviço
+    </a>
+  </div>
+</div>
+
+<form method="get" class="card" style="padding: 16px 20px; margin-bottom: 20px;">
+  <div class="d-flex gap-2 align-center" style="flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 220px; position: relative;">
+      <i class="bi bi-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--texto-corpo);"></i>
+      <input type="text" name="q" value="{{ q }}" placeholder="Buscar por nome ou descrição..."
+             class="form-control" style="padding-left: 36px;" autocomplete="off">
+    </div>
+    <select name="tipo" class="form-control" style="width: auto; flex-shrink: 0;">
+      <option value="">Todos os tipos</option>
+      {% for valor, label in tipo_choices %}
+        <option value="{{ valor }}" {% if tipo_filtro == valor %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="ativo" class="form-control" style="width: auto; flex-shrink: 0;">
+      <option value="">Todos</option>
+      <option value="1" {% if ativo_filtro == "1" %}selected{% endif %}>Ativos</option>
+      <option value="0" {% if ativo_filtro == "0" %}selected{% endif %}>Inativos</option>
+    </select>
+    <button type="submit" class="btn-primary btn-sm"><i class="bi bi-search"></i> Filtrar</button>
+    {% if q or tipo_filtro or ativo_filtro %}
+      <a href="{% url 'servicos:catalogo' %}" class="btn-secondary btn-sm">Limpar</a>
+    {% endif %}
+  </div>
+</form>
+
+<div class="card" style="overflow: hidden; padding: 0;">
+  {% if servicos %}
+  <table class="tabela" style="margin: 0;">
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th>Tipo</th>
+        <th>Descrição</th>
+        <th style="width: 80px; text-align: center;">Ativo</th>
+        <th style="width: 100px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in servicos %}
+      <tr>
+        <td style="font-weight: 600; color: var(--texto-titulo);">{{ s.nome }}</td>
+        <td>
+          {% if s.tipo == 'seguranca' %}<span class="badge badge-info">Segurança</span>
+          {% elif s.tipo == 'automacao' %}<span class="badge badge-cinza">Automação</span>
+          {% else %}<span class="badge badge-verde">Acesso</span>{% endif %}
+        </td>
+        <td style="font-size: 13px; color: var(--texto-corpo);">
+          {{ s.descricao|truncatechars:80 }}
+        </td>
+        <td style="text-align: center;">
+          {% if s.ativo %}
+            <i class="bi bi-check-circle-fill" style="color: var(--verde);"></i>
+          {% else %}
+            <i class="bi bi-x-circle" style="color: var(--erro);"></i>
+          {% endif %}
+        </td>
+        <td style="text-align: right;">
+          <a href="{% url 'servicos:catalogo_editar' s.pk %}" class="btn-secondary btn-sm" title="Editar">
+            <i class="bi bi-pencil"></i>
+          </a>
+          <a href="{% url 'servicos:catalogo_excluir' s.pk %}" class="btn-secondary btn-sm" title="Excluir" style="margin-left: 4px;">
+            <i class="bi bi-trash"></i>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if is_paginated %}
+  <div style="padding: 12px 20px; border-top: 1px solid var(--borda-fraca);">
+    <div class="paginacao">
+      {% if page_obj.has_previous %}
+        <a href="?q={{ q }}&tipo={{ tipo_filtro }}&ativo={{ ativo_filtro }}&page={{ page_obj.previous_page_number }}">
+          <i class="bi bi-chevron-left"></i>
+        </a>
+      {% endif %}
+      {% for num in paginator.page_range %}
+        {% if page_obj.number == num %}<span class="atual">{{ num }}</span>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+          <a href="?q={{ q }}&tipo={{ tipo_filtro }}&ativo={{ ativo_filtro }}&page={{ num }}">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a href="?q={{ q }}&tipo={{ tipo_filtro }}&ativo={{ ativo_filtro }}&page={{ page_obj.next_page_number }}">
+          <i class="bi bi-chevron-right"></i>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div style="padding: 60px 20px; text-align: center; color: var(--texto-corpo);">
+    <i class="bi bi-tools" style="font-size: 40px; opacity: 0.3; display: block; margin-bottom: 12px;"></i>
+    {% if q or tipo_filtro %}
+      <p style="margin: 0; font-size: 15px;">Nenhum serviço encontrado para os filtros aplicados.</p>
+      <a href="{% url 'servicos:catalogo' %}" style="font-size: 14px; margin-top: 8px; display: inline-block;">Limpar filtros</a>
+    {% else %}
+      <p style="margin: 0; font-size: 15px;">Nenhum serviço cadastrado ainda.</p>
+      <a href="{% url 'servicos:catalogo_novo' %}" class="btn-primary" style="margin-top: 16px; display: inline-flex;">
+        <i class="bi bi-plus-lg"></i> Cadastrar primeiro serviço
+      </a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

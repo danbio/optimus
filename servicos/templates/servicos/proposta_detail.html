@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% block title %}{{ proposta.numero }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>
+    <i class="bi bi-tools"></i> {{ proposta.numero }}
+    {% if proposta.status == 'concluida' %}<span class="badge badge-verde" style="vertical-align: middle; font-size: 14px;"><i class="bi bi-check-circle"></i> Concluída</span>
+    {% elif proposta.status == 'aprovada' %}<span class="badge badge-verde" style="vertical-align: middle; font-size: 14px;">Aprovada</span>
+    {% elif proposta.status == 'enviada' %}<span class="badge badge-info" style="vertical-align: middle; font-size: 14px;">Enviada</span>
+    {% elif proposta.status == 'cancelada' %}<span class="badge badge-erro" style="vertical-align: middle; font-size: 14px;">Cancelada</span>
+    {% else %}<span class="badge badge-cinza" style="vertical-align: middle; font-size: 14px;">Rascunho</span>{% endif %}
+  </h1>
+  <div class="d-flex gap-1">
+    {% if proposta.status == 'rascunho' %}
+    <form method="post" action="{% url 'servicos:enviar' proposta.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-primary"><i class="bi bi-send"></i> Enviar ao Cliente</button>
+    </form>
+    {% endif %}
+    {% if proposta.status == 'enviada' %}
+    <form method="post" action="{% url 'servicos:aprovar' proposta.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-primary"><i class="bi bi-check-lg"></i> Aprovar</button>
+    </form>
+    {% endif %}
+    {% if proposta.status == 'aprovada' %}
+    <a href="{% url 'ordens_servico:nova' %}?proposta_servico={{ proposta.pk }}" class="btn-primary">
+      <i class="bi bi-clipboard-plus"></i> Gerar OS
+    </a>
+    {% endif %}
+    {% if proposta.status == 'cancelada' %}
+    <form method="post" action="{% url 'servicos:reabrir' proposta.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-secondary"><i class="bi bi-arrow-counterclockwise"></i> Reabrir</button>
+    </form>
+    {% endif %}
+    <a href="{% url 'servicos:editar' proposta.pk %}" class="btn-primary">
+      <i class="bi bi-pencil"></i> Editar
+    </a>
+    <a href="{% url 'servicos:lista' %}" class="btn-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+</div>
+
+<div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-start;">
+
+  {# Coluna principal #}
+  <div style="flex: 2; min-width: 320px;">
+
+    {# Cliente #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-person"></i> Cliente</div>
+      <div class="card-body">
+        <div style="font-size: 18px; font-weight: 700; color: var(--texto-titulo);">
+          <a href="{% url 'clientes:detalhe' proposta.cliente.pk %}" style="color: inherit;">
+            {{ proposta.cliente.nome }}
+          </a>
+        </div>
+        {% if proposta.cliente.telefone_principal %}
+        <div style="font-size: 13px; color: var(--texto-corpo); margin-top: 4px;">
+          <i class="bi bi-telephone"></i> {{ proposta.cliente.telefone_principal }}
+        </div>
+        {% endif %}
+        {% if proposta.cliente.email %}
+        <div style="font-size: 13px; color: var(--texto-corpo);">
+          <i class="bi bi-envelope"></i> {{ proposta.cliente.email }}
+        </div>
+        {% endif %}
+        {% if proposta.cliente.cidade %}
+        <div style="font-size: 13px; color: var(--texto-corpo);">
+          <i class="bi bi-geo-alt"></i> {{ proposta.cliente.cidade }}{% if proposta.cliente.estado %}/{{ proposta.cliente.estado }}{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Tipo de Serviço #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-info-circle"></i> Tipo de Serviço</div>
+      <div class="card-body">
+        <div style="font-size: 16px; font-weight: 600; color: var(--texto-titulo);">
+          {% if proposta.tipo_servico == 'seguranca' %}<span class="badge badge-info" style="font-size: 14px;">Segurança Eletrônica</span>
+          {% elif proposta.tipo_servico == 'automacao' %}<span class="badge badge-cinza" style="font-size: 14px;">Automação</span>
+          {% else %}<span class="badge badge-verde" style="font-size: 14px;">Controle de Acesso</span>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# Itens de Serviço #}
+    {% if proposta.itens_servico.all %}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-wrench"></i> Serviços</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela" style="margin: 0;">
+          <thead>
+            <tr>
+              <th>Serviço</th>
+              <th style="text-align: right; width: 140px;">Valor (R$)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in proposta.itens_servico.all %}
+            <tr>
+              <td style="font-weight: 600;">{{ item.servico.nome }}</td>
+              <td style="text-align: right;">R$ {{ item.valor|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr style="background: var(--fundo-alt);">
+              <td style="font-weight: 700;">Subtotal serviços</td>
+              <td style="text-align: right; font-weight: 700;">R$ {{ proposta.total_servicos|floatformat:2 }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Itens de Produto #}
+    {% if proposta.itens_produto.all %}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-box-seam"></i> Produtos</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela" style="margin: 0;">
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th style="text-align: right; width: 80px;">Qtd.</th>
+              <th style="text-align: right; width: 140px;">Valor Unit.</th>
+              <th style="text-align: right; width: 140px;">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in proposta.itens_produto.all %}
+            <tr>
+              <td style="font-weight: 600;">{{ item.produto.descricao }}</td>
+              <td style="text-align: right;">{{ item.quantidade }}x</td>
+              <td style="text-align: right;">R$ {{ item.valor_unitario|floatformat:2 }}</td>
+              <td style="text-align: right;">R$ {{ item.subtotal|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr style="background: var(--fundo-alt);">
+              <td colspan="3" style="font-weight: 700;">Subtotal produtos</td>
+              <td style="text-align: right; font-weight: 700;">R$ {{ proposta.total_produtos|floatformat:2 }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if proposta.observacoes %}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-card-text"></i> Observações</div>
+      <div class="card-body">{{ proposta.observacoes|linebreaks }}</div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  {# Coluna lateral #}
+  <div style="flex: 0 0 260px; min-width: 240px;">
+
+    {# Resumo financeiro #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-cash-coin"></i> Resumo financeiro</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela" style="margin: 0;">
+          <tbody>
+            <tr>
+              <td>Total serviços</td>
+              <td style="text-align: right;">R$ {{ proposta.total_servicos|floatformat:2 }}</td>
+            </tr>
+            <tr>
+              <td>Total produtos</td>
+              <td style="text-align: right;">R$ {{ proposta.total_produtos|floatformat:2 }}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr style="background: var(--fundo-alt);">
+              <td style="font-weight: 700;">Valor Total</td>
+              <td style="text-align: right; font-weight: 700; font-size: 16px; color: var(--verde);">
+                R$ {{ proposta.valor_total|floatformat:2 }}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    {# Datas #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-calendar3"></i> Datas</div>
+      <div class="card-body">
+        <div style="font-size: 13px; margin-bottom: 8px;">
+          <span style="color: var(--texto-corpo);">Criada em</span><br>
+          <strong>{{ proposta.criado_em|date:"d/m/Y H:i" }}</strong>
+        </div>
+        <div style="font-size: 13px; margin-bottom: 8px;">
+          <span style="color: var(--texto-corpo);">Válida até</span><br>
+          <strong>{{ proposta.validade|date:"d/m/Y" }}</strong>
+        </div>
+        {% if proposta.atualizado_em != proposta.criado_em %}
+        <div style="font-size: 13px;">
+          <span style="color: var(--texto-corpo);">Atualizada em</span><br>
+          <strong>{{ proposta.atualizado_em|date:"d/m/Y H:i" }}</strong>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Ações perigosas #}
+    {% if proposta.status != 'concluida' and proposta.status != 'cancelada' %}
+    <form method="post" action="{% url 'servicos:cancelar' proposta.pk %}" style="margin-top: 8px;">
+      {% csrf_token %}
+      <button type="submit" class="btn-secondary" style="width: 100%; text-align: center; color: var(--alerta);"
+              onclick="return confirm('Tem certeza que deseja cancelar esta proposta?')">
+        <i class="bi bi-x-circle"></i> Cancelar proposta
+      </button>
+    </form>
+    {% endif %}
+    <a href="{% url 'servicos:excluir' proposta.pk %}" class="btn-secondary"
+       style="width: 100%; text-align: center; color: var(--erro); margin-top: 4px;">
+      <i class="bi bi-trash"></i> Excluir proposta
+    </a>
+
+    {# Ordens de Serviço vinculadas #}
+    {% with ordens=proposta.ordens_servico.all %}
+    {% if ordens %}
+    <div class="card" style="margin-top: 16px;">
+      <div class="card-header"><i class="bi bi-clipboard-check"></i> Ordens de Serviço</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela" style="margin: 0;">
+          <tbody>
+            {% for os in ordens %}
+            <tr>
+              <td>
+                <a href="{% url 'ordens_servico:detalhe' os.pk %}" style="font-weight: 600; font-family: monospace; color: var(--texto-titulo);">{{ os.numero }}</a>
+                <div style="font-size: 11px; color: var(--texto-corpo);">{{ os.tecnico.nome }}</div>
+              </td>
+              <td style="text-align: right;">
+                {% if os.status == 'aberta' %}<span class="badge badge-cinza">Aberta</span>
+                {% elif os.status == 'agendada' %}<span class="badge badge-info">Agendada</span>
+                {% elif os.status == 'em_execucao' %}<span class="badge badge-alerta">Em Execução</span>
+                {% elif os.status == 'concluida' %}<span class="badge badge-verde">Concluída</span>
+                {% elif os.status == 'faturada' %}<span class="badge badge-verde">Faturada</span>
+                {% elif os.status == 'suspensa' %}<span class="badge badge-erro">Suspensa</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+    {% endwith %}
+
+  </div>
+</div>
+{% endblock %}

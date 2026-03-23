@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-tools"></i> {{ titulo }}</h1>
+  <a href="{% if object %}{% url 'servicos:detalhe' object.pk %}{% else %}{% url 'servicos:lista' %}{% endif %}"
+     class="btn-secondary">
+    <i class="bi bi-arrow-left"></i> Voltar
+  </a>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {# ── DADOS DA PROPOSTA ─────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-file-text"></i> Dados da Proposta</div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 2; min-width: 240px;">
+          <label for="id_cliente">Cliente <span class="obrigatorio">*</span></label>
+          {{ form.cliente }}
+          {% if form.cliente.errors %}<div class="form-error">{% for e in form.cliente.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 180px;">
+          <label for="id_tipo_servico">Tipo de Serviço <span class="obrigatorio">*</span></label>
+          {{ form.tipo_servico }}
+          {% if form.tipo_servico.errors %}<div class="form-error">{% for e in form.tipo_servico.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 0 0 160px;">
+          <label for="id_validade">Válida até</label>
+          {{ form.validade }}
+          {% if form.validade.errors %}<div class="form-error">{% for e in form.validade.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── ITENS DE SERVIÇO ──────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-wrench"></i> Serviços</div>
+    <div class="card-body" style="padding: 0;">
+      {{ formset_servicos.management_form }}
+      <table class="tabela" style="margin: 0;" id="tabela-servicos">
+        <thead>
+          <tr>
+            <th style="min-width: 260px;">Serviço</th>
+            <th style="width: 150px;">Valor (R$)</th>
+            <th style="width: 46px;"></th>
+          </tr>
+        </thead>
+        <tbody id="formset-srv-body">
+          {% for f in formset_servicos %}
+          <tr class="formset-row-srv">
+            <td>
+              {{ f.id }}
+              {{ f.servico }}
+              {% if f.servico.errors %}<div class="form-error">{{ f.servico.errors }}</div>{% endif %}
+            </td>
+            <td>
+              {{ f.valor }}
+              {% if f.valor.errors %}<div class="form-error">{{ f.valor.errors }}</div>{% endif %}
+            </td>
+            <td style="text-align: center; vertical-align: middle;">
+              <span style="display:none;">{{ f.DELETE }}</span>
+              <button type="button" class="btn-del-item" title="Remover">
+                <i class="bi bi-trash" style="color: var(--erro); font-size: 15px;"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="padding: 10px 16px;">
+        <button type="button" class="btn-secondary btn-sm" id="btn-add-srv">
+          <i class="bi bi-plus-lg"></i> Adicionar serviço
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {# ── ITENS DE PRODUTO ──────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-box-seam"></i> Produtos</div>
+    <div class="card-body" style="padding: 0;">
+      {{ formset_produtos.management_form }}
+      <table class="tabela" style="margin: 0;" id="tabela-produtos">
+        <thead>
+          <tr>
+            <th style="min-width: 260px;">Produto</th>
+            <th style="width: 100px;">Qtd.</th>
+            <th style="width: 150px;">Valor Unit. (R$)</th>
+            <th style="width: 46px;"></th>
+          </tr>
+        </thead>
+        <tbody id="formset-prod-body">
+          {% for f in formset_produtos %}
+          <tr class="formset-row-prod" {% if f.instance.pk %}data-produto-nome="{{ f.instance.produto.descricao }}"{% endif %}>
+            <td>
+              {{ f.id }}
+              <div class="prod-search-wrap">
+                <input type="text" class="form-control prod-search-input" placeholder="Buscar produto por nome ou código..." autocomplete="off">
+                <div class="prod-dropdown"></div>
+                {{ f.produto }}
+              </div>
+              {% if f.produto.errors %}<div class="form-error">{{ f.produto.errors }}</div>{% endif %}
+            </td>
+            <td>
+              {{ f.quantidade }}
+              {% if f.quantidade.errors %}<div class="form-error">{{ f.quantidade.errors }}</div>{% endif %}
+            </td>
+            <td>
+              {{ f.valor_unitario }}
+              {% if f.valor_unitario.errors %}<div class="form-error">{{ f.valor_unitario.errors }}</div>{% endif %}
+            </td>
+            <td style="text-align: center; vertical-align: middle;">
+              <span style="display:none;">{{ f.DELETE }}</span>
+              <button type="button" class="btn-del-item" title="Remover">
+                <i class="bi bi-trash" style="color: var(--erro); font-size: 15px;"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="padding: 10px 16px;">
+        <button type="button" class="btn-secondary btn-sm" id="btn-add-prod">
+          <i class="bi bi-plus-lg"></i> Adicionar produto
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {# ── OBSERVAÇÕES ───────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-card-text"></i> Observações</div>
+    <div class="card-body">
+      <div class="form-group mb-0">
+        {{ form.observacoes }}
+        {% if form.observacoes.errors %}<div class="form-error">{% for e in form.observacoes.errors %}{{ e }}{% endfor %}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2" style="margin-top: 8px;">
+    <button type="submit" class="btn-primary">
+      <i class="bi bi-check-lg"></i> {{ acao }}
+    </button>
+    <a href="{% if object %}{% url 'servicos:detalhe' object.pk %}{% else %}{% url 'servicos:lista' %}{% endif %}"
+       class="btn-secondary">
+      <i class="bi bi-x"></i> Cancelar
+    </a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+.btn-del-item {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.btn-del-item:hover { background: var(--fundo-alt); }
+.prod-search-wrap { position: relative; }
+.prod-search-wrap > select { display: none; }
+.prod-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%; left: 0; right: 0;
+  background: #fff;
+  border: 1px solid var(--borda, #ccc);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  z-index: 200;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 4px 8px rgba(0,0,0,.12);
+}
+.prod-dropdown-item {
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.prod-dropdown-item:hover { background: var(--fundo-alt); }
+.prod-dropdown-item small { color: var(--texto-corpo, #666); display: block; }
+</style>
+<script>
+(function () {
+  var BUSCAR_URL = "{% url 'servicos:buscar_produtos' %}";
+
+  // ── Adicionar linha ──────────────────────────────────────
+  function addRow(prefix, bodyId, rowClass) {
+    var tbody = document.getElementById(bodyId);
+    var rows = Array.from(tbody.querySelectorAll('.' + rowClass));
+    var totalForms = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
+    var idx = parseInt(totalForms.value);
+
+    // Find a visible row to use as template
+    var templateRow = null;
+    for (var i = rows.length - 1; i >= 0; i--) {
+      if (rows[i].style.display !== 'none') { templateRow = rows[i]; break; }
+    }
+    if (!templateRow && rows.length) templateRow = rows[rows.length - 1];
+    if (!templateRow) return;
+
+    var newRow = templateRow.cloneNode(true);
+
+    newRow.querySelectorAll('input, select, textarea').forEach(function (el) {
+      el.name = el.name.replace(/-\d+-/, '-' + idx + '-');
+      el.id = el.id.replace(/-\d+-/, '-' + idx + '-');
+      if (el.type !== 'checkbox') {
+        el.value = '';
+      } else {
+        el.checked = false;
+      }
+    });
+
+    newRow.querySelectorAll('label').forEach(function (el) {
+      if (el.htmlFor) el.htmlFor = el.htmlFor.replace(/-\d+-/, '-' + idx + '-');
+    });
+
+    // Clear hidden id field
+    var idField = newRow.querySelector('input[type=hidden][name$="-id"]');
+    if (idField) idField.value = '';
+
+    // Clear error messages
+    newRow.querySelectorAll('.form-error').forEach(function (el) { el.remove(); });
+
+    // Reset product search UI if present
+    var searchInput = newRow.querySelector('.prod-search-input');
+    if (searchInput) searchInput.value = '';
+    var dropdown = newRow.querySelector('.prod-dropdown');
+    if (dropdown) { dropdown.innerHTML = ''; dropdown.style.display = 'none'; }
+
+    // Remove data-produto-nome from new rows
+    newRow.removeAttribute('data-produto-nome');
+
+    tbody.appendChild(newRow);
+    totalForms.value = idx + 1;
+
+    // Initialize product search on new row
+    if (prefix === 'prod') initProdSearch(newRow);
+  }
+
+  document.getElementById('btn-add-srv').addEventListener('click', function () {
+    addRow('srv', 'formset-srv-body', 'formset-row-srv');
+  });
+  document.getElementById('btn-add-prod').addEventListener('click', function () {
+    addRow('prod', 'formset-prod-body', 'formset-row-prod');
+  });
+
+  // ── Excluir linha ────────────────────────────────────────
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.btn-del-item');
+    if (!btn) return;
+    var row = btn.closest('tr');
+    if (!row) return;
+    var delCb = row.querySelector('input[type=checkbox][name$="-DELETE"]');
+    if (delCb) delCb.checked = true;
+    row.style.display = 'none';
+  });
+
+  // ── Busca de produtos ─────────────────────────────────────
+  var cache = {};
+
+  function buscar(q, cb) {
+    if (cache[q] !== undefined) { cb(cache[q]); return; }
+    fetch(BUSCAR_URL + '?q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (data) { cache[q] = data; cb(data); });
+  }
+
+  function initProdSearch(row) {
+    var wrap = row.querySelector('.prod-search-wrap');
+    if (!wrap) return;
+    var input = wrap.querySelector('.prod-search-input');
+    var dropdown = wrap.querySelector('.prod-dropdown');
+    var select = wrap.querySelector('select');
+
+    // For existing items in edit mode, show current product name
+    var nomeExistente = row.dataset.produtoNome;
+    if (nomeExistente) input.value = nomeExistente;
+
+    var timer;
+
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (q.length < 2) { dropdown.style.display = 'none'; dropdown.innerHTML = ''; return; }
+      timer = setTimeout(function () {
+        buscar(q, function (items) {
+          dropdown.innerHTML = '';
+          if (!items.length) {
+            var vazio = document.createElement('div');
+            vazio.className = 'prod-dropdown-item';
+            vazio.textContent = 'Nenhum produto encontrado.';
+            vazio.style.color = 'var(--texto-corpo)';
+            dropdown.appendChild(vazio);
+          } else {
+            items.forEach(function (item) {
+              var div = document.createElement('div');
+              div.className = 'prod-dropdown-item';
+              div.innerHTML = '<strong>' + item.descricao + '</strong><small>Cód. ' + item.codigo + ' · R$ ' + parseFloat(item.pscf).toFixed(2) + '</small>';
+              div.dataset.pk = item.pk;
+              div.dataset.preco = item.pscf;
+              div.dataset.descricao = item.descricao;
+              dropdown.appendChild(div);
+            });
+          }
+          dropdown.style.display = 'block';
+        });
+      }, 300);
+    });
+
+    dropdown.addEventListener('mousedown', function (e) {
+      var item = e.target.closest('.prod-dropdown-item');
+      if (!item || !item.dataset.pk) return;
+      e.preventDefault();
+
+      input.value = item.dataset.descricao;
+      dropdown.style.display = 'none';
+
+      // Set select value (find or create option)
+      if (select) {
+        var opt = select.querySelector('option[value="' + item.dataset.pk + '"]');
+        if (!opt) {
+          opt = document.createElement('option');
+          opt.value = item.dataset.pk;
+          select.appendChild(opt);
+        }
+        select.value = item.dataset.pk;
+      }
+
+      // Auto-fill valor_unitario only if empty
+      var valorInput = row.querySelector('input[name$="-valor_unitario"]');
+      if (valorInput && (!valorInput.value || valorInput.value === '0.00')) {
+        var preco = parseFloat(item.dataset.preco);
+        if (preco > 0) valorInput.value = preco.toFixed(2);
+      }
+    });
+
+    input.addEventListener('blur', function () {
+      setTimeout(function () { dropdown.style.display = 'none'; }, 150);
+    });
+    input.addEventListener('focus', function () {
+      if (dropdown.children.length) dropdown.style.display = 'block';
+    });
+  }
+
+  // Initialize search for all existing product rows
+  document.querySelectorAll('.formset-row-prod').forEach(initProdSearch);
+})();
+</script>
+{% endblock %}
