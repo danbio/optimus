@@ -29,20 +29,46 @@
   <a href="{% url 'clientes:lista' %}" {% if 'clientes' in request.resolver_match.app_name %}class="active"{% endif %}>
     <i class="bi bi-people"></i> Clientes
   </a>
-  <a href="#" {% if 'solar' in request.resolver_match.app_name %}class="active"{% endif %}>
+  <a href="{% url 'solar:lista' %}" {% if 'solar' in request.resolver_match.app_name %}class="active"{% endif %}>
     <i class="bi bi-sun"></i> Solar
   </a>
-  <a href="#" {% if 'servicos' in request.resolver_match.app_name %}class="active"{% endif %}>
-    <i class="bi bi-tools"></i> Serviços
-  </a>
+  <details {% if 'servicos' in request.resolver_match.app_name %}open{% endif %}>
+    <summary>
+      <i class="bi bi-tools"></i> Serviços
+      <i class="bi bi-chevron-right chevron"></i>
+    </summary>
+    <div class="sidebar-sub">
+      <a href="{% url 'servicos:lista' %}"
+         {% if 'servicos' in request.resolver_match.app_name and request.resolver_match.url_name != 'catalogo' and request.resolver_match.url_name != 'catalogo_novo' and request.resolver_match.url_name != 'catalogo_editar' and request.resolver_match.url_name != 'catalogo_excluir' %}class="active"{% endif %}>
+        <i class="bi bi-file-text"></i> Propostas
+      </a>
+      <a href="{% url 'servicos:catalogo' %}"
+         {% if 'servicos' in request.resolver_match.app_name and request.resolver_match.url_name in 'catalogo catalogo_novo catalogo_editar catalogo_excluir' %}class="active"{% endif %}>
+        <i class="bi bi-list-ul"></i> Catálogo
+      </a>
+    </div>
+  </details>
   <a href="#" {% if 'balcao' in request.resolver_match.app_name %}class="active"{% endif %}>
     <i class="bi bi-shop"></i> Balcão
   </a>
 
   <div class="sidebar-section">Operações</div>
-  <a href="#" {% if 'ordens_servico' in request.resolver_match.app_name %}class="active"{% endif %}>
-    <i class="bi bi-clipboard-check"></i> Ordens de Serviço
-  </a>
+  <details {% if 'ordens_servico' in request.resolver_match.app_name %}open{% endif %}>
+    <summary>
+      <i class="bi bi-clipboard-check"></i> Ordens de Serviço
+      <i class="bi bi-chevron-right chevron"></i>
+    </summary>
+    <div class="sidebar-sub">
+      <a href="{% url 'ordens_servico:lista' %}"
+         {% if 'ordens_servico' in request.resolver_match.app_name and request.resolver_match.url_name not in 'tecnicos tecnico_novo tecnico_editar tecnico_excluir' %}class="active"{% endif %}>
+        <i class="bi bi-list-ul"></i> Todas as OS
+      </a>
+      <a href="{% url 'ordens_servico:tecnicos' %}"
+         {% if 'ordens_servico' in request.resolver_match.app_name and request.resolver_match.url_name in 'tecnicos tecnico_novo tecnico_editar tecnico_excluir' %}class="active"{% endif %}>
+        <i class="bi bi-person-badge"></i> Técnicos
+      </a>
+    </div>
+  </details>
   <a href="#" {% if 'pos_venda' in request.resolver_match.app_name %}class="active"{% endif %}>
     <i class="bi bi-headset"></i> Pós-venda
   </a>
@@ -83,6 +109,9 @@
 </div>
 
 <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<script>
+  document.body.setAttribute('hx-headers', JSON.stringify({'X-CSRFToken': '{{ csrf_token }}'}));
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

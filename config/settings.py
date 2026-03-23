@@ -23,6 +23,9 @@ INSTALLED_APPS = [
     "core",
     "clientes",
     "estoque",
+    "solar",
+    "servicos",
+    "ordens_servico",
 ]
 
 MIDDLEWARE = [

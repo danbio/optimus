@@ -30,7 +30,18 @@
       "Bash(.venv/Scripts/python -c \"import pyxlsb; print\\(''pyxlsb ok''\\)\")",
       "Read(//c/Users/danub/**)",
       "Bash(.venv/Scripts/python.exe -c \":*)",
-      "Bash(.venv/Scripts/python.exe manage.py test estoque -v 2)"
+      "Bash(.venv/Scripts/python.exe manage.py test estoque -v 2)",
+      "Read(//c/Desenvolvimento/optimus/Optimus/$APPDATA/Claude/**)",
+      "Read(//c/Desenvolvimento/optimus/Optimus/$USERPROFILE/.claude/**)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\(''''mcpServers'''', {}\\), indent=2\\)\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(cd:*)",
+      "Bash(find /c/Desenvolvimento/optimus/Optimus -type f -name *.py -not -path .venv/* -not -path */__pycache__/*)",
+      "Bash(ls -la /c/Desenvolvimento/optimus/Optimus/*/migrations/)",
+      "Bash(xargs ls:*)",
+      "Bash(.venv/Scripts/python manage.py makemigrations servicos)",
+      "Bash(.venv/Scripts/python manage.py check servicos)",
+      "Bash(.venv/Scripts/python manage.py check --deploy)"
     ],
     "additionalDirectories": [
       "c:\\Desenvolvimento\\optimus\\Optimus\\.claude"
