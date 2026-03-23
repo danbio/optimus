@@ -1,0 +1,10 @@
+{% if produtos %}
+<div class="busca-resultados" id="produto-resultados">
+  {% for p in produtos %}
+  <div class="busca-item" onclick="selecionarProduto({{ p.pk }}, '{{ p.descricao|escapejs }}', {{ p.pscf }})">
+    <span style="font-weight: 600; font-size: 13px;">{{ p.descricao }}</span>
+    <span style="font-size: 12px; color: var(--texto-corpo);">Cód. {{ p.codigo }} · R$ {{ p.pscf }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

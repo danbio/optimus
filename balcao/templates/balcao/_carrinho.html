@@ -1,0 +1,64 @@
+{# Partial HTMX: tabela de itens + resumo de totais #}
+<div id="tabela-itens">
+  {% if itens %}
+  <table class="tabela">
+    <thead>
+      <tr>
+        <th>Produto</th>
+        <th style="text-align:center;">Qtd</th>
+        <th class="text-right">Vlr Unit</th>
+        <th class="text-right">Desconto</th>
+        <th class="text-right">Subtotal</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in itens %}
+      <tr>
+        <td>
+          <div style="font-size: 13px; font-weight: 600;">{{ item.produto.descricao }}</div>
+          <div style="font-size: 11px; color: var(--texto-corpo);">Cód. {{ item.produto.codigo }}</div>
+        </td>
+        <td style="text-align:center;">{{ item.quantidade|floatformat:"0" }}</td>
+        <td class="text-right">R$ {{ item.valor_unitario|floatformat:2 }}</td>
+        <td class="text-right" style="color: {% if item.desconto_item > 0 %}var(--erro){% else %}var(--texto-corpo){% endif %};">
+          {% if item.desconto_item > 0 %}- R$ {{ item.desconto_item|floatformat:2 }}{% else %}—{% endif %}
+        </td>
+        <td class="text-right" style="font-weight: 600;">R$ {{ item.subtotal|floatformat:2 }}</td>
+        <td>
+          <form method="post" action="{% url 'balcao:item_remover' venda.pk item.pk %}"
+            hx-post="{% url 'balcao:item_remover' venda.pk item.pk %}"
+            hx-target="#tabela-itens"
+            hx-swap="outerHTML">
+            {% csrf_token %}
+            <button type="submit" class="btn-secondary btn-sm" style="color: var(--erro);"
+              title="Remover item">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align: center; padding: 32px 20px; color: var(--texto-corpo);">
+    <i class="bi bi-cart-x" style="font-size: 28px; opacity: 0.3; display: block; margin-bottom: 8px;"></i>
+    <span style="font-size: 14px;">Nenhum produto adicionado.</span>
+  </div>
+  {% endif %}
+</div>
+
+{# Atualiza o resumo lateral também #}
+<div id="subtotal-data" data-subtotal="{{ venda.subtotal }}" style="display:none;"></div>
+<script>
+  (function() {
+    var el = document.getElementById('subtotal-data');
+    if (el) {
+      var subtotal = parseFloat(el.dataset.subtotal) || 0;
+      var subtotalEl = document.getElementById('subtotal-display');
+      if (subtotalEl) subtotalEl.textContent = 'R$ ' + subtotal.toFixed(2).replace('.', ',');
+      recalcularTotal();
+    }
+  })();
+</script>

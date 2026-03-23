@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Venda Balcão{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-shop"></i> Venda Balcão</h1>
+  <div class="page-header-actions">
+    <a href="{% url 'balcao:nova' %}" class="btn-primary btn-sm">
+      <i class="bi bi-plus-lg"></i> Nova Venda
+    </a>
+  </div>
+</div>
+
+{# KPIs #}
+<div class="d-flex gap-2" style="flex-wrap: wrap; margin-bottom: 20px;">
+  <div class="card" style="flex: 1; min-width: 160px; padding: 16px 20px;">
+    <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--texto-corpo);">Hoje</div>
+    <div style="font-size: 22px; font-weight: 700; color: var(--verde); margin-top: 4px;">R$ {{ total_hoje|floatformat:2 }}</div>
+  </div>
+  <div class="card" style="flex: 1; min-width: 160px; padding: 16px 20px;">
+    <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--texto-corpo);">Este mês</div>
+    <div style="font-size: 22px; font-weight: 700; color: var(--texto-titulo); margin-top: 4px;">R$ {{ total_mes|floatformat:2 }}</div>
+  </div>
+  <div class="card" style="flex: 1; min-width: 160px; padding: 16px 20px;">
+    <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--texto-corpo);">Em rascunho</div>
+    <div style="font-size: 22px; font-weight: 700; color: var(--alerta); margin-top: 4px;">{{ rascunhos }}</div>
+  </div>
+</div>
+
+{# Filtros #}
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-body">
+    <form method="get" class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-end;">
+      <div class="form-group" style="flex: 2; min-width: 200px; margin-bottom: 0;">
+        <label style="font-size: 12px; font-weight: 600;">Busca</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Número ou cliente...">
+      </div>
+      <div class="form-group" style="flex: 1; min-width: 130px; margin-bottom: 0;">
+        <label style="font-size: 12px; font-weight: 600;">Status</label>
+        <select name="status" class="form-control">
+          <option value="">Todos</option>
+          {% for val, label in status_choices %}
+            <option value="{{ val }}" {% if status_filtro == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="flex: 1; min-width: 130px; margin-bottom: 0;">
+        <label style="font-size: 12px; font-weight: 600;">De</label>
+        <input type="date" name="data_de" value="{{ data_de }}" class="form-control">
+      </div>
+      <div class="form-group" style="flex: 1; min-width: 130px; margin-bottom: 0;">
+        <label style="font-size: 12px; font-weight: 600;">Até</label>
+        <input type="date" name="data_ate" value="{{ data_ate }}" class="form-control">
+      </div>
+      <div style="display: flex; gap: 8px; align-items: flex-end;">
+        <button type="submit" class="btn-primary btn-sm"><i class="bi bi-search"></i> Filtrar</button>
+        <a href="{% url 'balcao:lista' %}" class="btn-secondary btn-sm">Limpar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# Tabela #}
+<div class="card">
+  <div class="card-body" style="padding: 0;">
+    {% if vendas %}
+    <div style="overflow-x: auto;">
+      <table class="tabela">
+        <thead>
+          <tr>
+            <th>Número</th>
+            <th>Data</th>
+            <th>Cliente</th>
+            <th>Itens</th>
+            <th class="text-right">Total</th>
+            <th>Forma pgto</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for venda in vendas %}
+          <tr>
+            <td><a href="{% url 'balcao:detalhe' venda.pk %}">{{ venda.numero }}</a></td>
+            <td style="font-size: 13px;">{{ venda.criado_em|date:"d/m/Y H:i" }}</td>
+            <td>{{ venda.nome_cliente_display }}</td>
+            <td style="text-align: center;">{{ venda.itens.count }}</td>
+            <td class="text-right" style="font-weight: 600;">R$ {{ venda.total|floatformat:2 }}</td>
+            <td style="font-size: 13px;">{{ venda.get_forma_pagamento_display|default:"—" }}</td>
+            <td>
+              {% if venda.status == 'rascunho' %}
+                <span class="badge badge-cinza">Rascunho</span>
+              {% elif venda.status == 'finalizada' %}
+                <span class="badge badge-verde">Finalizada</span>
+              {% else %}
+                <span class="badge badge-erro">Cancelada</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if venda.status == 'rascunho' %}
+                <a href="{% url 'balcao:editar' venda.pk %}" class="btn-primary btn-sm">
+                  <i class="bi bi-cart"></i> Continuar
+                </a>
+              {% else %}
+                <a href="{% url 'balcao:detalhe' venda.pk %}" class="btn-secondary btn-sm">
+                  <i class="bi bi-eye"></i>
+                </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 48px 20px; color: var(--texto-corpo);">
+      <i class="bi bi-shop" style="font-size: 36px; opacity: 0.3; display: block; margin-bottom: 12px;"></i>
+      <p>Nenhuma venda encontrada.</p>
+      <a href="{% url 'balcao:nova' %}" class="btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Nova Venda
+      </a>
+    </div>
+    {% endif %}
+  </div>
+  {% if is_paginated %}
+  <div class="card-footer" style="display: flex; justify-content: center; gap: 8px; padding: 12px;">
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}&q={{ q }}&status={{ status_filtro }}" class="btn-secondary btn-sm">← Anterior</a>
+    {% endif %}
+    <span style="font-size: 13px; color: var(--texto-corpo); padding: 4px 8px;">
+      Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}&q={{ q }}&status={{ status_filtro }}" class="btn-secondary btn-sm">Próxima →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

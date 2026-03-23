@@ -1,0 +1,10 @@
+{% if clientes %}
+<div class="busca-resultados" id="cliente-resultados">
+  {% for c in clientes %}
+  <div class="busca-item" onclick="selecionarCliente({{ c.pk }}, '{{ c.nome|escapejs }}')">
+    <span style="font-weight: 600; font-size: 13px;">{{ c.nome }}</span>
+    <span style="font-size: 12px; color: var(--texto-corpo);">{{ c.cpf_cnpj }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

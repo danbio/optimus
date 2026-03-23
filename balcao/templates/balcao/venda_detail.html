@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}{{ venda.numero }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="{% url 'balcao:lista' %}">Balcão</a>
+  <span>/</span>
+  <span>{{ venda.numero }}</span>
+</div>
+
+<div class="page-header">
+  <h1>
+    <i class="bi bi-shop"></i> {{ venda.numero }}
+    {% if venda.status == 'rascunho' %}
+      <span class="badge badge-cinza" style="font-size: 14px;">Rascunho</span>
+    {% elif venda.status == 'finalizada' %}
+      <span class="badge badge-verde" style="font-size: 14px;">Finalizada</span>
+    {% else %}
+      <span class="badge badge-erro" style="font-size: 14px;">Cancelada</span>
+    {% endif %}
+  </h1>
+  <div class="page-header-actions">
+    {% if venda.status == 'rascunho' %}
+    <a href="{% url 'balcao:editar' venda.pk %}" class="btn-primary btn-sm">
+      <i class="bi bi-cart"></i> Continuar
+    </a>
+    {% endif %}
+    <a href="{% url 'balcao:lista' %}" class="btn-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+</div>
+
+<div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-start;">
+
+  <div style="flex: 2; min-width: 280px;">
+
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header"><i class="bi bi-info-circle"></i> Dados da Venda</div>
+      <div class="card-body">
+        <div class="d-flex gap-2" style="flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 120px;">
+            <div style="font-size: 12px; color: var(--texto-corpo);">Número</div>
+            <div style="font-weight: 600;">{{ venda.numero }}</div>
+          </div>
+          <div style="flex: 1; min-width: 120px;">
+            <div style="font-size: 12px; color: var(--texto-corpo);">Data</div>
+            <div>{{ venda.criado_em|date:"d/m/Y H:i" }}</div>
+          </div>
+          <div style="flex: 1; min-width: 120px;">
+            <div style="font-size: 12px; color: var(--texto-corpo);">Operador</div>
+            <div>{{ venda.operador.get_full_name|default:venda.operador.username|default:"—" }}</div>
+          </div>
+          <div style="flex: 1; min-width: 120px;">
+            <div style="font-size: 12px; color: var(--texto-corpo);">Cliente</div>
+            <div>
+              {% if venda.cliente %}
+                <a href="{% url 'clientes:detalhe' venda.cliente.pk %}">{{ venda.cliente.nome }}</a>
+              {% else %}
+                {{ venda.cliente_nome_avulso|default:"Avulso" }}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% if venda.observacoes %}
+        <div style="margin-top: 12px; font-size: 13px; color: var(--texto-corpo);">
+          <strong>Obs:</strong> {{ venda.observacoes }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="bi bi-list-ul"></i> Itens</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela">
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th style="text-align:center;">Qtd</th>
+              <th class="text-right">Vlr Unit</th>
+              <th class="text-right">Desconto</th>
+              <th class="text-right">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in venda.itens.all %}
+            <tr>
+              <td>
+                <div style="font-size: 13px; font-weight: 600;">{{ item.produto.descricao }}</div>
+                <div style="font-size: 11px; color: var(--texto-corpo);">Cód. {{ item.produto.codigo }}</div>
+              </td>
+              <td style="text-align:center;">{{ item.quantidade|floatformat:"0" }}</td>
+              <td class="text-right">R$ {{ item.valor_unitario|floatformat:2 }}</td>
+              <td class="text-right">{% if item.desconto_item > 0 %}R$ {{ item.desconto_item|floatformat:2 }}{% else %}—{% endif %}</td>
+              <td class="text-right" style="font-weight: 600;">R$ {{ item.subtotal|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="flex: 1; min-width: 220px;">
+
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header"><i class="bi bi-calculator"></i> Resumo</div>
+      <div class="card-body">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px;">
+          <span style="color:var(--texto-corpo);">Subtotal</span>
+          <span>R$ {{ venda.subtotal|floatformat:2 }}</span>
+        </div>
+        {% if venda.desconto_reais > 0 %}
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px;color:var(--erro);">
+          <span>Desconto</span>
+          <span>- R$ {{ venda.desconto_reais|floatformat:2 }}</span>
+        </div>
+        {% endif %}
+        <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:700;color:var(--verde);border-top:2px solid var(--borda);padding-top:10px;margin-top:8px;">
+          <span>TOTAL</span>
+          <span>R$ {{ venda.total|floatformat:2 }}</span>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: var(--texto-corpo);">
+          <i class="bi bi-credit-card"></i>
+          {{ venda.get_forma_pagamento_display|default:"Forma não informada" }}
+          {% if venda.num_parcelas > 1 %} · {{ venda.num_parcelas }}x{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if venda.lancamentos.all %}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-cash-coin"></i> Financeiro</div>
+      <div class="card-body">
+        {% for lan in venda.lancamentos.all %}
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:14px;">
+          <a href="{% url 'financeiro:detalhe' lan.pk %}">{{ lan.numero }}</a>
+          <span class="badge badge-{% if lan.status == 'liquidado' %}verde{% elif lan.status == 'parcial' %}info{% elif lan.status == 'cancelado' %}cinza{% else %}alerta{% endif %}">
+            {{ lan.get_status_display }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}{{ venda.numero }} — Carrinho{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="{% url 'balcao:lista' %}">Balcão</a>
+  <span>/</span>
+  <span>{{ venda.numero }}</span>
+</div>
+
+<div class="page-header">
+  <h1><i class="bi bi-cart"></i> {{ venda.numero }} <span class="badge badge-cinza" style="font-size: 13px;">Rascunho</span></h1>
+</div>
+
+<div class="d-flex gap-2" style="align-items: flex-start; flex-wrap: wrap;">
+
+  {# ── COLUNA ESQUERDA (65%) ── #}
+  <div style="flex: 2; min-width: 320px;">
+
+    {# Cliente #}
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header"><i class="bi bi-person"></i> Cliente <span style="font-weight: 400; font-size: 12px; color: var(--texto-corpo);">(opcional)</span></div>
+      <div class="card-body">
+        <div id="cliente-selecionado" style="{% if not venda.cliente %}display:none;{% endif %} display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <span class="badge badge-verde" id="cliente-nome-badge">
+            {{ venda.cliente.nome|default:"" }}
+          </span>
+          <button type="button" onclick="limparCliente()" class="btn-secondary btn-sm" style="color: var(--erro);">
+            <i class="bi bi-x"></i>
+          </button>
+        </div>
+        <div id="busca-cliente-container">
+          <input type="text" id="busca-cliente-input" class="form-control"
+            placeholder="Digite nome ou CPF/CNPJ para buscar..."
+            hx-get="{% url 'balcao:buscar_cliente' %}"
+            hx-trigger="input changed delay:300ms"
+            hx-target="#cliente-resultados-container"
+            hx-include="[name='q_cliente']"
+            name="q_cliente"
+            autocomplete="off">
+          <div id="cliente-resultados-container"></div>
+        </div>
+        <div style="margin-top: 8px;">
+          <label style="font-size: 12px; color: var(--texto-corpo);">
+            <input type="checkbox" id="venda-avulsa" onchange="toggleAvulso(this)">
+            Venda avulsa (sem cadastro)
+          </label>
+          <div id="campo-nome-avulso" style="display:none; margin-top: 8px;">
+            <input type="text" id="nome-avulso-input" class="form-control" placeholder="Nome do cliente...">
+          </div>
+        </div>
+        <input type="hidden" id="cliente-id" name="cliente_id" value="{{ venda.cliente.pk|default:'' }}">
+      </div>
+    </div>
+
+    {# Adicionar produto #}
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header"><i class="bi bi-plus-circle"></i> Adicionar Produto</div>
+      <div class="card-body">
+        <div style="position: relative; margin-bottom: 12px;">
+          <input type="text" id="busca-produto-input" class="form-control"
+            placeholder="Código ou nome do produto..."
+            hx-get="{% url 'balcao:buscar_produto' %}"
+            hx-trigger="input changed delay:300ms"
+            hx-target="#produto-resultados-container"
+            hx-vals='{"q": "window.event.target.value"}'
+            name="q"
+            autocomplete="off">
+          <div id="produto-resultados-container" style="position: absolute; width: 100%; z-index: 100; background: var(--fundo); border: 1px solid var(--borda); border-radius: 6px; margin-top: 2px;"></div>
+        </div>
+
+        <form method="post" action="{% url 'balcao:item_adicionar' venda.pk %}"
+          hx-post="{% url 'balcao:item_adicionar' venda.pk %}"
+          hx-target="#tabela-itens"
+          hx-swap="outerHTML"
+          hx-on::after-request="this.reset(); document.getElementById('busca-produto-input').value=''; document.getElementById('produto-resultados-container').innerHTML='';"
+          id="form-adicionar-item">
+          {% csrf_token %}
+          <div class="d-flex gap-2" style="align-items: flex-end; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 3; min-width: 160px; margin-bottom: 0;">
+              <label style="font-size: 12px; font-weight: 600;">Produto</label>
+              {{ item_form.produto }}
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 80px; margin-bottom: 0;">
+              <label style="font-size: 12px; font-weight: 600;">Qtd</label>
+              {{ item_form.quantidade }}
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 100px; margin-bottom: 0;">
+              <label style="font-size: 12px; font-weight: 600;">Vlr Unit</label>
+              {{ item_form.valor_unitario }}
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 100px; margin-bottom: 0;">
+              <label style="font-size: 12px; font-weight: 600;">Desconto R$</label>
+              {{ item_form.desconto_item }}
+            </div>
+            <div style="margin-bottom: 0;">
+              <button type="submit" class="btn-primary btn-sm">
+                <i class="bi bi-plus-lg"></i> Adicionar
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {# Tabela de itens (target HTMX) #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-list-ul"></i> Itens do Carrinho</div>
+      <div class="card-body" style="padding: 0;">
+        {% include "balcao/_carrinho.html" %}
+      </div>
+    </div>
+
+  </div>
+
+  {# ── COLUNA DIREITA (sticky) ── #}
+  <div style="flex: 1; min-width: 240px; position: sticky; top: 84px;">
+
+    {# Resumo #}
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header"><i class="bi bi-calculator"></i> Resumo</div>
+      <div class="card-body">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px;">
+          <span style="color: var(--texto-corpo);">Subtotal</span>
+          <span id="subtotal-display" data-valor="{{ venda.subtotal }}">R$ {{ venda.subtotal|floatformat:2 }}</span>
+        </div>
+
+        <form method="post" action="{% url 'balcao:editar' venda.pk %}" id="form-desconto">
+          {% csrf_token %}
+          <div class="d-flex gap-2" style="margin-bottom: 10px;">
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label style="font-size: 12px;">Desc R$</label>
+              <input type="number" name="desconto_reais" id="id_desconto_reais"
+                value="{{ venda.desconto_reais }}" class="form-control"
+                step="0.01" min="0" inputmode="decimal">
+            </div>
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label style="font-size: 12px;">Desc %</label>
+              <input type="number" name="desconto_pct" id="id_desconto_pct"
+                value="{{ venda.desconto_pct }}" class="form-control"
+                step="0.01" min="0" max="100" inputmode="decimal">
+            </div>
+          </div>
+
+          <hr style="margin: 8px 0; border: none; border-top: 2px solid var(--borda);">
+          <div style="display: flex; justify-content: space-between; font-size: 20px; font-weight: 700; color: var(--verde); margin-bottom: 16px;">
+            <span>TOTAL</span>
+            <span id="total-display">R$ {{ venda.total|floatformat:2 }}</span>
+          </div>
+
+          <div class="form-group">
+            <label style="font-size: 12px; font-weight: 600;">Forma de pagamento</label>
+            <select name="forma_pagamento" class="form-control">
+              <option value="">— Selecione —</option>
+              {% for val, label in venda.FORMA_CHOICES %}
+                <option value="{{ val }}" {% if venda.forma_pagamento == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group" id="campo-parcelas" style="{% if venda.forma_pagamento != 'cartao_credito' %}display:none;{% endif %}">
+            <label style="font-size: 12px; font-weight: 600;">Nº de parcelas</label>
+            <select name="num_parcelas" class="form-control">
+              {% for i in "123456789012" %}{% endfor %}
+              {% for n in "1,2,3,4,5,6,7,8,9,10,11,12"|split:"," %}
+                <option value="{{ n }}" {% if venda.num_parcelas == n|add:"0" %}selected{% endif %}>{{ n }}x</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn-secondary btn-sm w-100" style="margin-bottom: 8px;">
+            <i class="bi bi-save"></i> Salvar rascunho
+          </button>
+        </form>
+
+        <form method="post" action="{% url 'balcao:finalizar' venda.pk %}"
+          onsubmit="return confirm('Finalizar a venda {{ venda.numero }}?')">
+          {% csrf_token %}
+          <button type="submit" class="btn-primary w-100">
+            <i class="bi bi-check-circle"></i> Finalizar Venda
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {# Cancelar #}
+    <form method="post" action="{% url 'balcao:cancelar' venda.pk %}"
+      onsubmit="return confirm('Cancelar esta venda? Esta ação não pode ser desfeita.')">
+      {% csrf_token %}
+      <button type="submit" class="btn-secondary btn-sm w-100" style="color: var(--erro);">
+        <i class="bi bi-x-circle"></i> Cancelar Venda
+      </button>
+    </form>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  var subtotalBase = parseFloat(document.getElementById('subtotal-display').dataset.valor) || 0;
+
+  function recalcularTotal() {
+    subtotalBase = parseFloat(document.getElementById('subtotal-display').dataset.valor) || 0;
+    var descR = parseFloat(document.getElementById('id_desconto_reais').value) || 0;
+    var descP = parseFloat(document.getElementById('id_desconto_pct').value) || 0;
+    var descFinal = descR > 0 ? descR : (subtotalBase * descP / 100);
+    var total = Math.max(subtotalBase - descFinal, 0);
+    document.getElementById('total-display').textContent = 'R$ ' + total.toFixed(2).replace('.', ',');
+  }
+
+  document.getElementById('id_desconto_reais').addEventListener('input', function() {
+    if (this.value) document.getElementById('id_desconto_pct').value = '';
+    recalcularTotal();
+  });
+  document.getElementById('id_desconto_pct').addEventListener('input', function() {
+    if (this.value) document.getElementById('id_desconto_reais').value = '';
+    recalcularTotal();
+  });
+
+  document.querySelector('[name=forma_pagamento]').addEventListener('change', function() {
+    var parcelas = document.getElementById('campo-parcelas');
+    if (this.value === 'cartao_credito') {
+      parcelas.style.display = 'block';
+    } else {
+      parcelas.style.display = 'none';
+    }
+  });
+
+  function selecionarProduto(pk, descricao, preco) {
+    var select = document.getElementById('id_produto');
+    if (select) {
+      var opt = new Option(descricao, pk, true, true);
+      select.add(opt);
+      select.value = pk;
+    }
+    var precoEl = document.getElementById('id_valor_unitario');
+    if (precoEl) precoEl.value = preco.toFixed(2);
+    document.getElementById('produto-resultados-container').innerHTML = '';
+    document.getElementById('busca-produto-input').value = '';
+  }
+
+  function selecionarCliente(pk, nome) {
+    document.getElementById('cliente-id').value = pk;
+    document.getElementById('cliente-nome-badge').textContent = nome;
+    document.getElementById('cliente-selecionado').style.display = 'flex';
+    document.getElementById('busca-cliente-input').value = '';
+    document.getElementById('cliente-resultados-container').innerHTML = '';
+  }
+
+  function limparCliente() {
+    document.getElementById('cliente-id').value = '';
+    document.getElementById('cliente-selecionado').style.display = 'none';
+  }
+
+  function toggleAvulso(cb) {
+    document.getElementById('campo-nome-avulso').style.display = cb.checked ? 'block' : 'none';
+    document.getElementById('busca-cliente-input').disabled = cb.checked;
+  }
+</script>
+{% endblock %}
