@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Ordens de Serviço{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-clipboard-check"></i> Ordens de Serviço</h1>
+  <div class="d-flex gap-1">
+    <a href="{% url 'ordens_servico:tecnicos' %}" class="btn-secondary">
+      <i class="bi bi-people"></i> Técnicos
+    </a>
+    <a href="{% url 'ordens_servico:nova' %}" class="btn-primary">
+      <i class="bi bi-plus-lg"></i> Nova OS
+    </a>
+  </div>
+</div>
+
+<form method="get" class="card" style="padding: 16px 20px; margin-bottom: 20px;">
+  <div class="d-flex gap-2 align-center" style="flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 220px; position: relative;">
+      <i class="bi bi-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--texto-corpo);"></i>
+      <input type="text" name="q" value="{{ q }}" placeholder="Buscar por número ou cliente..."
+             class="form-control" style="padding-left: 36px;" autocomplete="off">
+    </div>
+    <select name="prioridade" class="form-control" style="width: auto; flex-shrink: 0;">
+      <option value="">Todas prioridades</option>
+      {% for valor, label in prioridade_choices %}
+        <option value="{{ valor }}" {% if prioridade_filtro == valor %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="tecnico" class="form-control" style="width: auto; flex-shrink: 0;">
+      <option value="">Todos técnicos</option>
+      {% for t in tecnicos %}
+        <option value="{{ t.pk }}" {% if tecnico_filtro == t.pk|stringformat:"d" %}selected{% endif %}>{{ t.nome }}</option>
+      {% endfor %}
+    </select>
+    <div class="d-flex gap-1 align-center" style="flex-shrink: 0; flex-wrap: wrap;">
+      <a href="?q={{ q }}&prioridade={{ prioridade_filtro }}&tecnico={{ tecnico_filtro }}"
+         class="btn-secondary btn-sm{% if not status_filtro %} btn-ativo{% endif %}">Todos</a>
+      {% for valor, label in status_choices %}
+      <a href="?q={{ q }}&prioridade={{ prioridade_filtro }}&tecnico={{ tecnico_filtro }}&status={{ valor }}"
+         class="btn-secondary btn-sm{% if status_filtro == valor %} btn-ativo{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn-primary btn-sm"><i class="bi bi-search"></i> Buscar</button>
+  </div>
+</form>
+
+<div class="card" style="overflow: hidden; padding: 0;">
+  {% if ordens %}
+  <table class="tabela" style="margin: 0;">
+    <thead>
+      <tr>
+        <th>Número</th>
+        <th>Cliente</th>
+        <th>Técnico</th>
+        <th style="width: 90px;">Origem</th>
+        <th style="width: 90px;">Prioridade</th>
+        <th style="width: 110px;">Status</th>
+        <th style="width: 90px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in ordens %}
+      <tr>
+        <td>
+          <a href="{% url 'ordens_servico:detalhe' o.pk %}" style="font-weight: 600; color: var(--texto-titulo); font-family: monospace;">
+            {{ o.numero }}
+          </a>
+          <div style="font-size: 11px; color: var(--texto-corpo);">{{ o.criado_em|date:"d/m/Y" }}</div>
+        </td>
+        <td>{{ o.cliente.nome }}</td>
+        <td>{{ o.tecnico.nome }}</td>
+        <td>
+          {% if o.proposta_solar_id %}<span class="badge badge-verde">Solar</span>
+          {% elif o.proposta_servico_id %}<span class="badge badge-info">Serviço</span>
+          {% else %}<span class="badge badge-cinza">Avulsa</span>{% endif %}
+        </td>
+        <td>
+          {% if o.prioridade == 'urgente' %}<span class="badge badge-erro">Urgente</span>
+          {% elif o.prioridade == 'alta' %}<span class="badge badge-alerta">Alta</span>
+          {% elif o.prioridade == 'normal' %}<span class="badge badge-info">Normal</span>
+          {% else %}<span class="badge badge-cinza">Baixa</span>{% endif %}
+        </td>
+        <td>
+          {% if o.status == 'aberta' %}<span class="badge badge-cinza">Aberta</span>
+          {% elif o.status == 'agendada' %}<span class="badge badge-info">Agendada</span>
+          {% elif o.status == 'em_execucao' %}<span class="badge badge-alerta">Em Execução</span>
+          {% elif o.status == 'concluida' %}<span class="badge badge-verde">Concluída</span>
+          {% elif o.status == 'faturada' %}<span class="badge badge-verde">Faturada</span>
+          {% elif o.status == 'suspensa' %}<span class="badge badge-erro">Suspensa</span>
+          {% endif %}
+        </td>
+        <td style="text-align: right;">
+          <a href="{% url 'ordens_servico:detalhe' o.pk %}" class="btn-secondary btn-sm" title="Ver">
+            <i class="bi bi-eye"></i>
+          </a>
+          {% if o.status != 'concluida' and o.status != 'faturada' %}
+          <a href="{% url 'ordens_servico:editar' o.pk %}" class="btn-secondary btn-sm" title="Editar" style="margin-left: 4px;">
+            <i class="bi bi-pencil"></i>
+          </a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if is_paginated %}
+  <div style="padding: 12px 20px; border-top: 1px solid var(--borda-fraca);">
+    <div class="paginacao">
+      {% if page_obj.has_previous %}
+        <a href="?q={{ q }}&status={{ status_filtro }}&prioridade={{ prioridade_filtro }}&tecnico={{ tecnico_filtro }}&page={{ page_obj.previous_page_number }}">
+          <i class="bi bi-chevron-left"></i>
+        </a>
+      {% endif %}
+      {% for num in paginator.page_range %}
+        {% if page_obj.number == num %}<span class="atual">{{ num }}</span>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+          <a href="?q={{ q }}&status={{ status_filtro }}&prioridade={{ prioridade_filtro }}&tecnico={{ tecnico_filtro }}&page={{ num }}">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a href="?q={{ q }}&status={{ status_filtro }}&prioridade={{ prioridade_filtro }}&tecnico={{ tecnico_filtro }}&page={{ page_obj.next_page_number }}">
+          <i class="bi bi-chevron-right"></i>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div style="padding: 60px 20px; text-align: center; color: var(--texto-corpo);">
+    <i class="bi bi-clipboard-check" style="font-size: 40px; opacity: 0.3; display: block; margin-bottom: 12px;"></i>
+    {% if q or status_filtro or prioridade_filtro or tecnico_filtro %}
+      <p style="margin: 0; font-size: 15px;">Nenhuma OS encontrada para os filtros aplicados.</p>
+      <a href="{% url 'ordens_servico:lista' %}" style="font-size: 14px; margin-top: 8px; display: inline-block;">Limpar filtros</a>
+    {% else %}
+      <p style="margin: 0; font-size: 15px;">Nenhuma ordem de serviço cadastrada.</p>
+      <a href="{% url 'ordens_servico:nova' %}" class="btn-primary" style="margin-top: 16px; display: inline-block;">
+        <i class="bi bi-plus-lg"></i> Criar primeira OS
+      </a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

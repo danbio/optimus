@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}{{ os_obj.numero }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>
+    <i class="bi bi-clipboard-check"></i> {{ os_obj.numero }}
+    {% if os_obj.status == 'aberta' %}<span class="badge badge-cinza" style="vertical-align: middle; font-size: 14px;">Aberta</span>
+    {% elif os_obj.status == 'agendada' %}<span class="badge badge-info" style="vertical-align: middle; font-size: 14px;">Agendada</span>
+    {% elif os_obj.status == 'em_execucao' %}<span class="badge badge-alerta" style="vertical-align: middle; font-size: 14px;">Em Execução</span>
+    {% elif os_obj.status == 'concluida' %}<span class="badge badge-verde" style="vertical-align: middle; font-size: 14px;">Concluída</span>
+    {% elif os_obj.status == 'faturada' %}<span class="badge badge-verde" style="vertical-align: middle; font-size: 14px;">Faturada</span>
+    {% elif os_obj.status == 'suspensa' %}<span class="badge badge-erro" style="vertical-align: middle; font-size: 14px;">Suspensa</span>
+    {% endif %}
+  </h1>
+  <div class="d-flex gap-1">
+    {% if os_obj.status != 'concluida' and os_obj.status != 'faturada' %}
+    <a href="{% url 'ordens_servico:editar' os_obj.pk %}" class="btn-primary">
+      <i class="bi bi-pencil"></i> Editar
+    </a>
+    {% endif %}
+    <a href="{% url 'ordens_servico:lista' %}" class="btn-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+</div>
+
+<div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-start;">
+
+  {# ── Coluna principal ──────────────────────────────────── #}
+  <div style="flex: 2; min-width: 320px;">
+
+    {# Cliente #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-person"></i> Cliente</div>
+      <div class="card-body">
+        <div style="font-size: 18px; font-weight: 700; color: var(--texto-titulo);">
+          <a href="{% url 'clientes:detalhe' os_obj.cliente.pk %}" style="color: inherit;">
+            {{ os_obj.cliente.nome }}
+          </a>
+        </div>
+        {% if os_obj.cliente.telefone_principal %}
+        <div style="font-size: 13px; color: var(--texto-corpo); margin-top: 4px;">
+          <i class="bi bi-telephone"></i> {{ os_obj.cliente.telefone_principal }}
+        </div>
+        {% endif %}
+        {% if os_obj.cliente.email %}
+        <div style="font-size: 13px; color: var(--texto-corpo);">
+          <i class="bi bi-envelope"></i> {{ os_obj.cliente.email }}
+        </div>
+        {% endif %}
+        {% if os_obj.cliente.cidade %}
+        <div style="font-size: 13px; color: var(--texto-corpo);">
+          <i class="bi bi-geo-alt"></i> {{ os_obj.cliente.cidade }}{% if os_obj.cliente.estado %}/{{ os_obj.cliente.estado }}{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Descrição #}
+    {% if os_obj.descricao %}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-card-text"></i> Descrição do Serviço</div>
+      <div class="card-body">{{ os_obj.descricao|linebreaks }}</div>
+    </div>
+    {% endif %}
+
+    {# Checklist #}
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-check2-square"></i> Checklist de Instalação
+        {% if os_obj.checklist_total > 0 %}
+          <span class="badge badge-{% if os_obj.checklist_percentual == 100 %}verde{% elif os_obj.checklist_percentual > 0 %}alerta{% else %}cinza{% endif %}" style="margin-left: 8px;">
+            {{ os_obj.checklist_concluidos }}/{{ os_obj.checklist_total }}
+          </span>
+        {% endif %}
+      </div>
+      <div class="card-body" style="padding: 0;">
+        {% if os_obj.itens_checklist.all %}
+          {% if os_obj.checklist_total > 0 %}
+          <div style="padding: 12px 20px 0;">
+            <div style="background: var(--fundo-alt); border-radius: 3px; height: 8px; overflow: hidden;">
+              <div style="background: var(--verde); height: 100%; width: {{ os_obj.checklist_percentual }}%; transition: width 0.3s;"></div>
+            </div>
+            <div style="font-size: 11px; color: var(--texto-corpo); margin-top: 4px;">{{ os_obj.checklist_percentual }}% concluído</div>
+          </div>
+          {% endif %}
+          <table class="tabela" style="margin: 0; margin-top: 8px;">
+            <tbody>
+              {% for item in os_obj.itens_checklist.all %}
+              {% include "ordens_servico/_checklist_item_row.html" with item=item os_obj=os_obj %}
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div style="padding: 30px 20px; text-align: center; color: var(--texto-corpo); font-size: 14px;">
+            Nenhum item no checklist.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Fotos #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-camera"></i> Fotos</div>
+      <div class="card-body">
+        {% if os_obj.fotos.all %}
+        <div class="d-flex gap-2" style="flex-wrap: wrap;">
+          {% for foto in os_obj.fotos.all %}
+          <div style="position: relative; width: 160px;">
+            <img src="{{ foto.foto.url }}" alt="{{ foto.legenda }}"
+                 style="width: 160px; height: 120px; object-fit: cover; border-radius: 3px; border: 1px solid var(--borda-fraca);">
+            {% if foto.legenda %}
+            <div style="font-size: 11px; color: var(--texto-corpo); margin-top: 2px;">{{ foto.legenda }}</div>
+            {% endif %}
+            <div style="font-size: 11px; color: var(--texto-off);">{{ foto.enviada_em|date:"d/m/Y H:i" }}</div>
+            <form method="post" action="{% url 'ordens_servico:remover_foto' os_obj.pk foto.pk %}" style="position: absolute; top: 4px; right: 4px;">
+              {% csrf_token %}
+              <button type="submit" title="Remover foto"
+                      style="background: rgba(0,0,0,0.5); border: none; color: #fff; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 12px; line-height: 24px; padding: 0;">
+                <i class="bi bi-x"></i>
+              </button>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align: center; color: var(--texto-corpo); font-size: 14px; padding: 10px 0;">
+          Nenhuma foto adicionada.
+        </div>
+        {% endif %}
+
+        {# Upload de foto #}
+        {% if os_obj.status != 'concluida' and os_obj.status != 'faturada' %}
+        <form method="post" action="{% url 'ordens_servico:adicionar_foto' os_obj.pk %}" enctype="multipart/form-data"
+              style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--borda-fraca);">
+          {% csrf_token %}
+          <div class="d-flex gap-2 align-center" style="flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px;">
+              {{ foto_form.foto }}
+            </div>
+            <div style="flex: 1; min-width: 150px;">
+              {{ foto_form.legenda }}
+            </div>
+            <button type="submit" class="btn-primary btn-sm">
+              <i class="bi bi-upload"></i> Enviar
+            </button>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Observações #}
+    {% if os_obj.observacoes %}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-card-text"></i> Observações</div>
+      <div class="card-body">{{ os_obj.observacoes|linebreaks }}</div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  {# ── Coluna lateral ────────────────────────────────────── #}
+  <div style="flex: 0 0 280px; min-width: 260px;">
+
+    {# Informações #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-info-circle"></i> Informações</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela" style="margin: 0;">
+          <tbody>
+            <tr>
+              <td class="col-titulo" style="font-size: 13px;">Origem</td>
+              <td style="font-size: 13px;">
+                {% if os_obj.proposta_solar %}
+                  <a href="{% url 'solar:detalhe' os_obj.proposta_solar.pk %}">{{ os_obj.proposta_solar.numero }}</a>
+                {% elif os_obj.proposta_servico %}
+                  <a href="{% url 'servicos:detalhe' os_obj.proposta_servico.pk %}">{{ os_obj.proposta_servico.numero }}</a>
+                {% else %}
+                  <span class="badge badge-cinza">Avulsa</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td class="col-titulo" style="font-size: 13px;">Técnico</td>
+              <td style="font-size: 13px;">{{ os_obj.tecnico.nome }}</td>
+            </tr>
+            <tr>
+              <td class="col-titulo" style="font-size: 13px;">Prioridade</td>
+              <td style="font-size: 13px;">
+                {% if os_obj.prioridade == 'urgente' %}<span class="badge badge-erro">Urgente</span>
+                {% elif os_obj.prioridade == 'alta' %}<span class="badge badge-alerta">Alta</span>
+                {% elif os_obj.prioridade == 'normal' %}<span class="badge badge-info">Normal</span>
+                {% else %}<span class="badge badge-cinza">Baixa</span>{% endif %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# Datas #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-calendar3"></i> Datas</div>
+      <div class="card-body">
+        <div style="font-size: 13px; margin-bottom: 8px;">
+          <strong>Criada:</strong> {{ os_obj.criado_em|date:"d/m/Y H:i" }}
+        </div>
+        {% if os_obj.data_agendamento %}
+        <div style="font-size: 13px; margin-bottom: 8px;">
+          <strong>Agendamento:</strong> {{ os_obj.data_agendamento|date:"d/m/Y H:i" }}
+        </div>
+        {% endif %}
+        {% if os_obj.data_inicio_execucao %}
+        <div style="font-size: 13px; margin-bottom: 8px;">
+          <strong>Início execução:</strong> {{ os_obj.data_inicio_execucao|date:"d/m/Y H:i" }}
+        </div>
+        {% endif %}
+        {% if os_obj.data_conclusao %}
+        <div style="font-size: 13px; margin-bottom: 8px;">
+          <strong>Conclusão:</strong> {{ os_obj.data_conclusao|date:"d/m/Y H:i" }}
+        </div>
+        {% endif %}
+        <div style="font-size: 11px; color: var(--texto-off); margin-top: 8px;">
+          Atualizado em {{ os_obj.atualizado_em|date:"d/m/Y H:i" }}
+        </div>
+      </div>
+    </div>
+
+    {# Assinatura #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-pen"></i> Assinatura do Cliente</div>
+      <div class="card-body">
+        {% if os_obj.assinatura_confirmada %}
+          <div style="font-size: 14px; color: var(--verde); font-weight: 600; margin-bottom: 4px;">
+            <i class="bi bi-check-circle-fill"></i> Confirmada
+          </div>
+          <div style="font-size: 13px;">{{ os_obj.assinatura_nome }}</div>
+          <div style="font-size: 11px; color: var(--texto-corpo);">{{ os_obj.assinatura_data|date:"d/m/Y H:i" }}</div>
+        {% else %}
+          <div style="font-size: 13px; color: var(--texto-corpo);">Pendente</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Ações / Transições de Estado #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-lightning"></i> Ações</div>
+      <div class="card-body">
+
+        {% if os_obj.status == 'aberta' %}
+          <form method="post" action="{% url 'ordens_servico:agendar' os_obj.pk %}" style="margin-bottom: 12px;">
+            {% csrf_token %}
+            <label style="font-size: 13px; font-weight: 600; margin-bottom: 4px; display: block;">Agendar</label>
+            <input type="datetime-local" name="data_agendamento" class="form-control" style="margin-bottom: 8px;" required>
+            <button type="submit" class="btn-primary btn-sm w-100">
+              <i class="bi bi-calendar-check"></i> Agendar OS
+            </button>
+          </form>
+          <a href="{% url 'ordens_servico:excluir' os_obj.pk %}" class="btn-secondary btn-sm w-100" style="text-align: center;">
+            <i class="bi bi-trash"></i> Excluir OS
+          </a>
+        {% endif %}
+
+        {% if os_obj.status == 'agendada' %}
+          <form method="post" action="{% url 'ordens_servico:iniciar' os_obj.pk %}" style="margin-bottom: 12px;">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary btn-sm w-100">
+              <i class="bi bi-play-fill"></i> Iniciar Execução
+            </button>
+          </form>
+          <form method="post" action="{% url 'ordens_servico:reagendar' os_obj.pk %}" style="margin-bottom: 12px;">
+            {% csrf_token %}
+            <label style="font-size: 13px; font-weight: 600; margin-bottom: 4px; display: block;">Reagendar</label>
+            <input type="datetime-local" name="data_agendamento" class="form-control" style="margin-bottom: 8px;" required>
+            <button type="submit" class="btn-secondary btn-sm w-100">
+              <i class="bi bi-calendar2-x"></i> Reagendar
+            </button>
+          </form>
+        {% endif %}
+
+        {% if os_obj.status == 'em_execucao' %}
+          <form method="post" action="{% url 'ordens_servico:concluir' os_obj.pk %}" style="margin-bottom: 12px;">
+            {% csrf_token %}
+            <label style="font-size: 13px; font-weight: 600; margin-bottom: 4px; display: block;">Concluir OS</label>
+            <input type="text" name="assinatura_nome" class="form-control" placeholder="Nome de quem assina..." style="margin-bottom: 8px;" required>
+            <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+              <input type="checkbox" name="assinatura_confirmada" value="on" required>
+              Confirmo a conclusão do serviço
+            </label>
+            <button type="submit" class="btn-primary btn-sm w-100">
+              <i class="bi bi-check-circle"></i> Concluir OS
+            </button>
+          </form>
+          <form method="post" action="{% url 'ordens_servico:suspender' os_obj.pk %}">
+            {% csrf_token %}
+            <input type="text" name="motivo" class="form-control" placeholder="Motivo da suspensão..." style="margin-bottom: 8px;">
+            <button type="submit" class="btn-secondary btn-sm w-100" style="color: var(--erro);">
+              <i class="bi bi-pause-circle"></i> Suspender
+            </button>
+          </form>
+        {% endif %}
+
+        {% if os_obj.status == 'suspensa' %}
+          <form method="post" action="{% url 'ordens_servico:reagendar' os_obj.pk %}">
+            {% csrf_token %}
+            <label style="font-size: 13px; font-weight: 600; margin-bottom: 4px; display: block;">Reagendar</label>
+            <input type="datetime-local" name="data_agendamento" class="form-control" style="margin-bottom: 8px;" required>
+            <button type="submit" class="btn-primary btn-sm w-100">
+              <i class="bi bi-calendar-check"></i> Reagendar OS
+            </button>
+          </form>
+        {% endif %}
+
+        {% if os_obj.status == 'concluida' or os_obj.status == 'faturada' %}
+          <div style="text-align: center; color: var(--texto-corpo); font-size: 14px; padding: 8px 0;">
+            {% if os_obj.status == 'concluida' %}
+              <i class="bi bi-check-circle-fill" style="color: var(--verde); font-size: 24px; display: block; margin-bottom: 8px;"></i>
+              OS concluída com sucesso.
+            {% else %}
+              <i class="bi bi-receipt" style="color: var(--verde); font-size: 24px; display: block; margin-bottom: 8px;"></i>
+              OS faturada.
+            {% endif %}
+          </div>
+        {% endif %}
+
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}

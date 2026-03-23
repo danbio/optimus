@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-clipboard-check"></i> {{ titulo }}</h1>
+  <a href="{% if object %}{% url 'ordens_servico:detalhe' object.pk %}{% else %}{% url 'ordens_servico:lista' %}{% endif %}"
+     class="btn-secondary">
+    <i class="bi bi-arrow-left"></i> Voltar
+  </a>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {# ── DADOS DA OS ───────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-file-text"></i> Dados da Ordem de Serviço</div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 2; min-width: 240px;">
+          <label for="id_cliente">Cliente <span class="obrigatorio">*</span></label>
+          {{ form.cliente }}
+          {% if form.cliente.errors %}<div class="form-error">{% for e in form.cliente.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 180px;">
+          <label for="id_tecnico">Técnico <span class="obrigatorio">*</span></label>
+          {{ form.tecnico }}
+          {% if form.tecnico.errors %}<div class="form-error">{% for e in form.tecnico.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 180px;">
+          <label for="id_proposta_solar">Proposta Solar</label>
+          {{ form.proposta_solar }}
+          {% if form.proposta_solar.errors %}<div class="form-error">{% for e in form.proposta_solar.errors %}{{ e }}{% endfor %}</div>{% endif %}
+          <div class="form-ajuda">Opcional — vincule a uma proposta solar aprovada</div>
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 180px;">
+          <label for="id_proposta_servico">Proposta de Serviço</label>
+          {{ form.proposta_servico }}
+          {% if form.proposta_servico.errors %}<div class="form-error">{% for e in form.proposta_servico.errors %}{{ e }}{% endfor %}</div>{% endif %}
+          <div class="form-ajuda">Opcional — vincule a uma proposta de serviço aprovada</div>
+        </div>
+      </div>
+      <div class="form-group" style="max-width: 200px;">
+          <label for="id_prioridade">Prioridade</label>
+          {{ form.prioridade }}
+          {% if form.prioridade.errors %}<div class="form-error">{% for e in form.prioridade.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      <div class="form-group">
+        <label for="id_descricao">Descrição do serviço</label>
+        {{ form.descricao }}
+        {% if form.descricao.errors %}<div class="form-error">{% for e in form.descricao.errors %}{{ e }}{% endfor %}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── CHECKLIST ─────────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-check2-square"></i> Checklist de Instalação</div>
+    <div class="card-body" style="padding: 0;">
+      {{ formset_checklist.management_form }}
+      <table class="tabela" style="margin: 0;" id="tabela-checklist">
+        <thead>
+          <tr>
+            <th style="width: 46px;">OK</th>
+            <th style="min-width: 260px;">Descrição</th>
+            <th style="min-width: 200px;">Observação</th>
+            <th style="width: 46px;"></th>
+          </tr>
+        </thead>
+        <tbody id="formset-chk-body">
+          {% for f in formset_checklist %}
+          <tr class="formset-row-chk">
+            <td style="text-align: center; vertical-align: middle;">
+              {{ f.id }}
+              {{ f.concluido }}
+            </td>
+            <td>
+              {{ f.descricao }}
+              {% if f.descricao.errors %}<div class="form-error">{{ f.descricao.errors }}</div>{% endif %}
+            </td>
+            <td>
+              {{ f.observacao }}
+              {% if f.observacao.errors %}<div class="form-error">{{ f.observacao.errors }}</div>{% endif %}
+            </td>
+            <td style="text-align: center; vertical-align: middle;">
+              <span style="display:none;">{{ f.DELETE }}</span>
+              <button type="button" class="btn-del-item" title="Remover">
+                <i class="bi bi-trash" style="color: var(--erro); font-size: 15px;"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="padding: 10px 16px;">
+        <button type="button" class="btn-secondary btn-sm" id="btn-add-chk">
+          <i class="bi bi-plus-lg"></i> Adicionar item
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {# ── OBSERVAÇÕES ───────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-card-text"></i> Observações</div>
+    <div class="card-body">
+      <div class="form-group mb-0">
+        {{ form.observacoes }}
+        {% if form.observacoes.errors %}<div class="form-error">{% for e in form.observacoes.errors %}{{ e }}{% endfor %}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2" style="margin-top: 8px;">
+    <button type="submit" class="btn-primary">
+      <i class="bi bi-check-lg"></i> {{ acao }}
+    </button>
+    <a href="{% if object %}{% url 'ordens_servico:detalhe' object.pk %}{% else %}{% url 'ordens_servico:lista' %}{% endif %}"
+       class="btn-secondary">
+      <i class="bi bi-x"></i> Cancelar
+    </a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+.btn-del-item {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.btn-del-item:hover { background: var(--fundo-alt); }
+</style>
+<script>
+(function () {
+  /* ── Formset dinâmico: Checklist ────────── */
+  var prefix = "chk";
+  var tbody  = document.getElementById("formset-chk-body");
+  var btnAdd = document.getElementById("btn-add-chk");
+  var totalInput = document.getElementById("id_" + prefix + "-TOTAL_FORMS");
+
+  btnAdd.addEventListener("click", function () {
+    var idx = parseInt(totalInput.value, 10);
+    var lastRow = tbody.querySelector("tr.formset-row-chk:last-child");
+    if (!lastRow) return;
+    var newRow = lastRow.cloneNode(true);
+
+    newRow.querySelectorAll("input, select, textarea").forEach(function (el) {
+      var name = el.getAttribute("name") || "";
+      var id   = el.getAttribute("id") || "";
+      el.setAttribute("name", name.replace(/-\d+-/, "-" + idx + "-"));
+      el.setAttribute("id",   id.replace(/-\d+-/, "-" + idx + "-"));
+      if (el.type === "checkbox") el.checked = false;
+      else el.value = "";
+    });
+    tbody.appendChild(newRow);
+    totalInput.value = idx + 1;
+    bindDeleteButtons();
+  });
+
+  function bindDeleteButtons() {
+    document.querySelectorAll(".btn-del-item").forEach(function (btn) {
+      btn.onclick = function () {
+        var row = btn.closest("tr");
+        var delCheckbox = row.querySelector("input[type='checkbox'][name$='-DELETE']");
+        if (delCheckbox) {
+          delCheckbox.checked = true;
+          row.style.display = "none";
+        } else {
+          row.remove();
+          totalInput.value = parseInt(totalInput.value, 10) - 1;
+        }
+      };
+    });
+  }
+  bindDeleteButtons();
+})();
+</script>
+{% endblock %}
