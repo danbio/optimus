@@ -254,7 +254,10 @@ def aprovar_proposta(request, pk):
     if proposta.status == PropostaServico.STATUS_ENVIADA:
         proposta.status = PropostaServico.STATUS_APROVADA
         proposta.save()
-        messages.success(request, f"Proposta {proposta.numero} aprovada!")
+        from financeiro.services import criar_lancamento_de_proposta_servico
+
+        criar_lancamento_de_proposta_servico(proposta)
+        messages.success(request, f"Proposta {proposta.numero} aprovada! Lançamento financeiro gerado.")
     else:
         messages.error(request, "Apenas propostas Enviadas podem ser aprovadas.")
     return redirect("servicos:detalhe", pk=pk)

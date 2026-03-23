@@ -30,7 +30,14 @@ class PropostaSolarForm(forms.ModelForm):
         self.fields["consumo_medio_kwh"].widget.attrs.update({"placeholder": "Ex: 350", "inputmode": "decimal", "step": "0.01"})
         self.fields["hsp"].widget.attrs.update({"placeholder": "5.50", "inputmode": "decimal", "step": "0.01"})
         self.fields["fator_eficiencia"].widget.attrs.update({"placeholder": "0.75", "inputmode": "decimal", "step": "0.01"})
-        self.fields["quantidade_modulos"].widget.attrs.update({"placeholder": "Calculado automaticamente", "inputmode": "numeric"})
+        self.fields["quantidade_modulos"].widget.attrs.update(
+            {
+                "placeholder": "Calculado automaticamente",
+                "inputmode": "numeric",
+                "readonly": True,
+                "style": "background: var(--fundo-alt); cursor: not-allowed;",
+            }
+        )
         self.fields["valor_equipamentos"].widget.attrs.update({"placeholder": "0,00", "inputmode": "decimal", "step": "0.01"})
         self.fields["valor_instalacao"].widget.attrs.update({"placeholder": "0,00", "inputmode": "decimal", "step": "0.01"})
         self.fields["validade"].widget.attrs["type"] = "date"

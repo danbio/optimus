@@ -29,8 +29,14 @@
   </div>
   {% if qtd_sugerida %}
   <div style="font-size: 12px; color: var(--texto-corpo); margin-top: 8px;">
-    Preencha o campo <strong>Quantidade de módulos</strong> com <strong>{{ qtd_sugerida }}</strong> ou ajuste conforme o projeto.
+    Quantidade de módulos preenchida automaticamente: <strong>{{ qtd_sugerida }}</strong>.
   </div>
+  <script>
+    (function() {
+      var el = document.getElementById('id_quantidade_modulos');
+      if (el) { el.value = '{{ qtd_sugerida }}'; }
+    })();
+  </script>
   {% endif %}
 </div>
 {% endif %}

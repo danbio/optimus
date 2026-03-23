@@ -15,6 +15,7 @@ urlpatterns = [
     path("<int:pk>/agendar/", views.agendar_os, name="agendar"),
     path("<int:pk>/iniciar/", views.iniciar_os, name="iniciar"),
     path("<int:pk>/concluir/", views.concluir_os, name="concluir"),
+    path("<int:pk>/faturar/", views.faturar_os, name="faturar"),
     path("<int:pk>/suspender/", views.suspender_os, name="suspender"),
     path("<int:pk>/reagendar/", views.reagendar_os, name="reagendar"),
     # Checklist toggle

@@ -363,6 +363,22 @@ def concluir_os(request, pk):
 
 @login_required
 @require_POST
+def faturar_os(request, pk):
+    os_obj = get_object_or_404(OrdemServico, pk=pk)
+    if os_obj.status == OrdemServico.STATUS_CONCLUIDA:
+        os_obj.status = OrdemServico.STATUS_FATURADA
+        os_obj.save()
+        from financeiro.services import criar_lancamento_de_ordem_servico
+
+        criar_lancamento_de_ordem_servico(os_obj)
+        messages.success(request, f"OS {os_obj.numero} faturada! Lançamento financeiro gerado.")
+    else:
+        messages.error(request, "Apenas OS concluídas podem ser faturadas.")
+    return redirect("ordens_servico:detalhe", pk=pk)
+
+
+@login_required
+@require_POST
 def suspender_os(request, pk):
     os_obj = get_object_or_404(OrdemServico, pk=pk)
     if os_obj.status == OrdemServico.STATUS_EM_EXECUCAO:

@@ -193,7 +193,10 @@ def aprovar_proposta(request, pk):
     if proposta.status == PropostaSolar.STATUS_ENVIADA:
         proposta.status = PropostaSolar.STATUS_APROVADA
         proposta.save()
-        messages.success(request, f"Proposta {proposta.numero} aprovada!")
+        from financeiro.services import criar_lancamento_de_proposta_solar
+
+        criar_lancamento_de_proposta_solar(proposta)
+        messages.success(request, f"Proposta {proposta.numero} aprovada! Lançamento financeiro gerado.")
     else:
         messages.error(request, "Apenas propostas Enviadas podem ser aprovadas.")
     return redirect("solar:detalhe", pk=pk)

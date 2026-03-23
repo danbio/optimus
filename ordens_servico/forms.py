@@ -60,6 +60,24 @@ class OrdemServicoForm(forms.ModelForm):
         self.fields["proposta_solar"].queryset = PropostaSolar.objects.filter(status="aprovada").select_related("cliente")
         self.fields["proposta_servico"].queryset = PropostaServico.objects.filter(status="aprovada").select_related("cliente")
 
+    def clean(self):
+        cleaned = super().clean()
+        proposta_solar = cleaned.get("proposta_solar")
+        proposta_servico = cleaned.get("proposta_servico")
+        cliente = cleaned.get("cliente")
+
+        # Regra XOR: não pode ter as duas propostas ao mesmo tempo
+        if proposta_solar and proposta_servico:
+            raise forms.ValidationError("Uma OS não pode estar vinculada a uma Proposta Solar e a uma Proposta de Serviço ao mesmo tempo.")
+
+        # Validar que o cliente bate com a proposta vinculada
+        if proposta_solar and cliente and proposta_solar.cliente_id != cliente.pk:
+            raise forms.ValidationError(f"O cliente selecionado não corresponde ao cliente da Proposta Solar ({proposta_solar.cliente.nome}).")
+        if proposta_servico and cliente and proposta_servico.cliente_id != cliente.pk:
+            raise forms.ValidationError(f"O cliente selecionado não corresponde ao cliente da Proposta de Serviço ({proposta_servico.cliente.nome}).")
+
+        return cleaned
+
 
 class AssinaturaForm(forms.Form):
     assinatura_nome = forms.CharField(

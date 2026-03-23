@@ -7,9 +7,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-ea!&3rg0-gl18e2*^_^6=$7v!u68n1yzwgwd^xkc1qdq^dpo07")
+_SECRET_KEY = os.environ.get("SECRET_KEY", "")
+if not _SECRET_KEY:
+    # Em desenvolvimento, usa chave insegura com aviso; em produção exige .env
+    import sys
+
+    if "runserver" in sys.argv or os.environ.get("DJANGO_ENV") != "production":
+        _SECRET_KEY = "django-insecure-dev-only-nao-usar-em-producao"
+    else:
+        raise RuntimeError("SECRET_KEY não configurada. Defina no arquivo .env antes de iniciar em produção.")
+SECRET_KEY = _SECRET_KEY
+
 DEBUG = os.environ.get("DEBUG", "True") == "True"
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*").split(",")
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,*").split(",")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -26,6 +36,8 @@ INSTALLED_APPS = [
     "solar",
     "servicos",
     "ordens_servico",
+    "financeiro",
+    "balcao",
 ]
 
 MIDDLEWARE = [

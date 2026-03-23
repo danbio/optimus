@@ -313,15 +313,24 @@
           </form>
         {% endif %}
 
-        {% if os_obj.status == 'concluida' or os_obj.status == 'faturada' %}
+        {% if os_obj.status == 'concluida' %}
+          <div style="text-align: center; color: var(--texto-corpo); font-size: 14px; padding: 8px 0 12px;">
+            <i class="bi bi-check-circle-fill" style="color: var(--verde); font-size: 24px; display: block; margin-bottom: 8px;"></i>
+            OS concluída com sucesso.
+          </div>
+          <form method="post" action="{% url 'ordens_servico:faturar' os_obj.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary btn-sm w-100"
+              onclick="return confirm('Confirmar faturamento da OS {{ os_obj.numero }}?')">
+              <i class="bi bi-receipt"></i> Marcar como Faturada
+            </button>
+          </form>
+        {% endif %}
+
+        {% if os_obj.status == 'faturada' %}
           <div style="text-align: center; color: var(--texto-corpo); font-size: 14px; padding: 8px 0;">
-            {% if os_obj.status == 'concluida' %}
-              <i class="bi bi-check-circle-fill" style="color: var(--verde); font-size: 24px; display: block; margin-bottom: 8px;"></i>
-              OS concluída com sucesso.
-            {% else %}
-              <i class="bi bi-receipt" style="color: var(--verde); font-size: 24px; display: block; margin-bottom: 8px;"></i>
-              OS faturada.
-            {% endif %}
+            <i class="bi bi-receipt" style="color: var(--verde); font-size: 24px; display: block; margin-bottom: 8px;"></i>
+            OS faturada.
           </div>
         {% endif %}
 
