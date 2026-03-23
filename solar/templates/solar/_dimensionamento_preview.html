@@ -1,0 +1,36 @@
+{% if kwp_necessario %}
+<div class="dimensionamento-preview">
+  <div class="preview-titulo"><i class="bi bi-lightning-charge-fill"></i> Resultado do dimensionamento</div>
+  <div class="preview-grid">
+    <div class="preview-item">
+      <span class="preview-label">Potência necessária</span>
+      <span class="preview-valor">{{ kwp_necessario }} kWp</span>
+    </div>
+    {% if qtd_sugerida %}
+    <div class="preview-item destaque">
+      <span class="preview-label">Módulos sugeridos</span>
+      <span class="preview-valor">{{ qtd_sugerida }} unidades</span>
+    </div>
+    <div class="preview-item">
+      <span class="preview-label">Potência real do sistema</span>
+      <span class="preview-valor">{{ kwp_real }} kWp</span>
+    </div>
+    <div class="preview-item">
+      <span class="preview-label">Área aproximada</span>
+      <span class="preview-valor">{{ area_m2 }} m²</span>
+    </div>
+    {% else %}
+    <div class="preview-item" style="grid-column: span 3;">
+      <span class="preview-label" style="color: var(--texto-corpo);">
+        <i class="bi bi-info-circle"></i> Selecione o módulo para calcular a quantidade.
+      </span>
+    </div>
+    {% endif %}
+  </div>
+  {% if qtd_sugerida %}
+  <div style="font-size: 12px; color: var(--texto-corpo); margin-top: 8px;">
+    Preencha o campo <strong>Quantidade de módulos</strong> com <strong>{{ qtd_sugerida }}</strong> ou ajuste conforme o projeto.
+  </div>
+  {% endif %}
+</div>
+{% endif %}

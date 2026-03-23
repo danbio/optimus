@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-sun"></i> {{ titulo }}</h1>
+  <a href="{% if object %}{% url 'solar:detalhe' object.pk %}{% else %}{% url 'solar:lista' %}{% endif %}"
+     class="btn-secondary">
+    <i class="bi bi-arrow-left"></i> Voltar
+  </a>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {# ── CLIENTE ──────────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-person"></i> Cliente</div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 2; min-width: 240px;">
+          <label for="id_cliente">Cliente <span class="obrigatorio">*</span></label>
+          {{ form.cliente }}
+          {% if form.cliente.errors %}<div class="form-error">{% for e in form.cliente.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 0 0 160px;">
+          <label for="id_validade">Válida até</label>
+          {{ form.validade }}
+          {% if form.validade.errors %}<div class="form-error">{% for e in form.validade.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── DIMENSIONAMENTO ──────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-calculator"></i> Dimensionamento
+    </div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-end;">
+        <div class="form-group" style="flex: 1; min-width: 160px;">
+          <label for="id_consumo_medio_kwh">
+            Consumo médio <span class="obrigatorio">*</span>
+            <span class="form-ajuda" style="font-weight: 400;">(kWh/mês)</span>
+          </label>
+          {{ form.consumo_medio_kwh }}
+          {% if form.consumo_medio_kwh.errors %}<div class="form-error">{% for e in form.consumo_medio_kwh.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 0 0 120px;">
+          <label for="id_hsp">
+            HSP
+            <span class="form-ajuda" style="font-weight: 400;">(h/dia)</span>
+          </label>
+          {{ form.hsp }}
+          {% if form.hsp.errors %}<div class="form-error">{% for e in form.hsp.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 0 0 130px;">
+          <label for="id_fator_eficiencia">
+            Fator
+            <span class="form-ajuda" style="font-weight: 400;">(perdas)</span>
+          </label>
+          {{ form.fator_eficiencia }}
+          {% if form.fator_eficiencia.errors %}<div class="form-error">{% for e in form.fator_eficiencia.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div style="padding-bottom: 20px;">
+          <button type="button" class="btn-secondary"
+                  hx-get="{% url 'solar:dimensionar' %}"
+                  hx-include="#id_consumo_medio_kwh, #id_hsp, #id_fator_eficiencia, #id_modulo"
+                  hx-target="#preview-dimensionamento"
+                  hx-swap="innerHTML">
+            <i class="bi bi-lightning-charge"></i> Calcular
+          </button>
+        </div>
+      </div>
+
+      <div class="form-ajuda" style="margin-top: -8px; margin-bottom: 12px;">
+        HSP de Palmas/TO ≈ 5,5 h/dia · Fator padrão 0,75 (inclui perdas de cabeamento, temperatura e inversor)
+      </div>
+
+      <div id="preview-dimensionamento">
+        {# Preenchido via HTMX ao clicar em Calcular #}
+      </div>
+    </div>
+  </div>
+
+  {# ── EQUIPAMENTOS ─────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-cpu"></i> Equipamentos</div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 2; min-width: 240px;">
+          <label for="id_modulo">Módulo fotovoltaico <span class="obrigatorio">*</span></label>
+          {{ form.modulo }}
+          {% if form.modulo.errors %}<div class="form-error">{% for e in form.modulo.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 0 0 140px;">
+          <label for="id_quantidade_modulos">
+            Qtd. módulos <span class="obrigatorio">*</span>
+          </label>
+          {{ form.quantidade_modulos }}
+          {% if form.quantidade_modulos.errors %}<div class="form-error">{% for e in form.quantidade_modulos.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 2; min-width: 240px;">
+          <label for="id_inversor">Inversor <span class="obrigatorio">*</span></label>
+          {{ form.inversor }}
+          {% if form.inversor.errors %}<div class="form-error">{% for e in form.inversor.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 2; min-width: 240px;">
+          <label for="id_estrutura">Estrutura de fixação <span class="obrigatorio">*</span></label>
+          {{ form.estrutura }}
+          {% if form.estrutura.errors %}<div class="form-error">{% for e in form.estrutura.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── FINANCEIRO ───────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-cash-coin"></i> Financeiro</div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 180px;">
+          <label for="id_valor_equipamentos">Equipamentos (R$)</label>
+          {{ form.valor_equipamentos }}
+          {% if form.valor_equipamentos.errors %}<div class="form-error">{% for e in form.valor_equipamentos.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 180px;">
+          <label for="id_valor_instalacao">Instalação / mão de obra (R$)</label>
+          {{ form.valor_instalacao }}
+          {% if form.valor_instalacao.errors %}<div class="form-error">{% for e in form.valor_instalacao.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 180px;">
+          <label>Total (R$)</label>
+          <div id="total-display" class="form-control" style="background: var(--fundo-alt); font-weight: 700; color: var(--verde);">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── OBSERVAÇÕES ──────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-header"><i class="bi bi-card-text"></i> Observações</div>
+    <div class="card-body">
+      <div class="form-group mb-0">
+        {{ form.observacoes }}
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2" style="margin-top: 8px;">
+    <button type="submit" class="btn-primary">
+      <i class="bi bi-check-lg"></i> {{ acao }}
+    </button>
+    <a href="{% if object %}{% url 'solar:detalhe' object.pk %}{% else %}{% url 'solar:lista' %}{% endif %}"
+       class="btn-secondary">
+      <i class="bi bi-x"></i> Cancelar
+    </a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .dimensionamento-preview {
+    background: var(--fundo-alt);
+    border: 1px solid var(--borda-fraca);
+    border-left: 4px solid var(--verde);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-top: 4px;
+  }
+  .preview-titulo {
+    font-weight: 700;
+    color: var(--verde);
+    font-size: 13px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .preview-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .preview-item.destaque .preview-valor {
+    color: var(--verde);
+    font-size: 20px;
+  }
+  .preview-label {
+    font-size: 11px;
+    color: var(--texto-corpo);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .preview-valor {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--texto-titulo);
+  }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  function fmt(v) {
+    return parseFloat(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function atualizarTotal() {
+    var equip = parseFloat(document.getElementById('id_valor_equipamentos').value.replace(',', '.') || 0);
+    var inst = parseFloat(document.getElementById('id_valor_instalacao').value.replace(',', '.') || 0);
+    var total = equip + inst;
+    document.getElementById('total-display').textContent = total > 0 ? 'R$ ' + fmt(total) : '—';
+  }
+  document.getElementById('id_valor_equipamentos').addEventListener('input', atualizarTotal);
+  document.getElementById('id_valor_instalacao').addEventListener('input', atualizarTotal);
+  atualizarTotal();
+})();
+</script>
+{% endblock %}

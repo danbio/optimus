@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}{{ proposta.numero }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>
+    <i class="bi bi-sun"></i> {{ proposta.numero }}
+    {% if proposta.status == 'concluida' %}<span class="badge badge-verde" style="vertical-align: middle; font-size: 14px;"><i class="bi bi-check-circle"></i> Concluída</span>
+    {% elif proposta.status == 'aprovada' %}<span class="badge badge-verde" style="vertical-align: middle; font-size: 14px;">Aprovada</span>
+    {% elif proposta.status == 'enviada' %}<span class="badge badge-info" style="vertical-align: middle; font-size: 14px;">Enviada</span>
+    {% elif proposta.status == 'cancelada' %}<span class="badge badge-erro" style="vertical-align: middle; font-size: 14px;">Cancelada</span>
+    {% else %}<span class="badge badge-cinza" style="vertical-align: middle; font-size: 14px;">Rascunho</span>{% endif %}
+  </h1>
+  <div class="d-flex gap-1">
+    {% if proposta.status == 'rascunho' %}
+    <form method="post" action="{% url 'solar:enviar' proposta.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-primary"><i class="bi bi-send"></i> Enviar ao Cliente</button>
+    </form>
+    {% endif %}
+    {% if proposta.status == 'enviada' %}
+    <form method="post" action="{% url 'solar:aprovar' proposta.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-primary"><i class="bi bi-check-lg"></i> Aprovar</button>
+    </form>
+    {% endif %}
+    {% if proposta.status == 'aprovada' %}
+    <a href="{% url 'ordens_servico:nova' %}?proposta_solar={{ proposta.pk }}" class="btn-primary">
+      <i class="bi bi-clipboard-plus"></i> Gerar OS
+    </a>
+    {% endif %}
+    {% if proposta.status == 'cancelada' %}
+    <form method="post" action="{% url 'solar:reabrir' proposta.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-secondary"><i class="bi bi-arrow-counterclockwise"></i> Reabrir</button>
+    </form>
+    {% endif %}
+    <a href="{% url 'solar:editar' proposta.pk %}" class="btn-primary">
+      <i class="bi bi-pencil"></i> Editar
+    </a>
+    <a href="{% url 'solar:lista' %}" class="btn-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+</div>
+
+<div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-start;">
+
+  {# Coluna principal #}
+  <div style="flex: 2; min-width: 320px;">
+
+    {# Cliente #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-person"></i> Cliente</div>
+      <div class="card-body">
+        <div style="font-size: 18px; font-weight: 700; color: var(--texto-titulo);">
+          <a href="{% url 'clientes:detalhe' proposta.cliente.pk %}" style="color: inherit;">
+            {{ proposta.cliente.nome }}
+          </a>
+        </div>
+        {% if proposta.cliente.telefone_principal %}
+        <div style="font-size: 13px; color: var(--texto-corpo); margin-top: 4px;">
+          <i class="bi bi-telephone"></i> {{ proposta.cliente.telefone_principal }}
+        </div>
+        {% endif %}
+        {% if proposta.cliente.email %}
+        <div style="font-size: 13px; color: var(--texto-corpo);">
+          <i class="bi bi-envelope"></i> {{ proposta.cliente.email }}
+        </div>
+        {% endif %}
+        {% if proposta.cliente.cidade %}
+        <div style="font-size: 13px; color: var(--texto-corpo);">
+          <i class="bi bi-geo-alt"></i> {{ proposta.cliente.cidade }}{% if proposta.cliente.estado %}/{{ proposta.cliente.estado }}{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Dimensionamento #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-calculator"></i> Dimensionamento</div>
+      <div class="card-body">
+        <div class="preview-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px;">
+          <div>
+            <div style="font-size: 11px; color: var(--texto-corpo); text-transform: uppercase; letter-spacing: 0.4px;">Consumo médio</div>
+            <div style="font-size: 20px; font-weight: 700; color: var(--texto-titulo);">{{ proposta.consumo_medio_kwh }} kWh<span style="font-size: 13px; font-weight: 400;">/mês</span></div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--texto-corpo); text-transform: uppercase; letter-spacing: 0.4px;">Potência do sistema</div>
+            <div style="font-size: 20px; font-weight: 700; color: var(--verde);">{{ proposta.potencia_real_kwp }} kWp</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--texto-corpo); text-transform: uppercase; letter-spacing: 0.4px;">HSP / Fator</div>
+            <div style="font-size: 16px; font-weight: 700; color: var(--texto-titulo);">{{ proposta.hsp }}h / {{ proposta.fator_eficiencia }}</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--texto-corpo); text-transform: uppercase; letter-spacing: 0.4px;">Área aproximada</div>
+            <div style="font-size: 16px; font-weight: 700; color: var(--texto-titulo);">{{ proposta.area_total_m2 }} m²</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Equipamentos #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-cpu"></i> Equipamentos</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela" style="margin: 0;">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th style="width: 100px; text-align: right;">Qtd.</th>
+              <th>Especificação</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Módulo</strong></td>
+              <td style="text-align: right; font-weight: 700;">{{ proposta.quantidade_modulos }}x</td>
+              <td>
+                {{ proposta.modulo.fabricante }} {{ proposta.modulo.modelo }}
+                <div style="font-size: 12px; color: var(--texto-corpo);">
+                  {{ proposta.modulo.potencia_wp }}Wp · Efic. {{ proposta.modulo.eficiencia }}% · {{ proposta.modulo.largura }}×{{ proposta.modulo.altura }}mm
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Inversor</strong></td>
+              <td style="text-align: right; font-weight: 700;">1x</td>
+              <td>
+                {{ proposta.inversor.fabricante }} {{ proposta.inversor.modelo }}
+                <div style="font-size: 12px; color: var(--texto-corpo);">
+                  {{ proposta.inversor.potencia_kw }}kW · {{ proposta.inversor.get_tipo_display }} · {{ proposta.inversor.get_fase_display }}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Estrutura</strong></td>
+              <td style="text-align: right; font-weight: 700;">1x</td>
+              <td>
+                {{ proposta.estrutura.fabricante }} {{ proposta.estrutura.modelo }}
+                <div style="font-size: 12px; color: var(--texto-corpo);">
+                  {{ proposta.estrutura.get_tipo_display }} · {{ proposta.estrutura.get_material_display }}
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if proposta.observacoes %}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-card-text"></i> Observações</div>
+      <div class="card-body">{{ proposta.observacoes|linebreaks }}</div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  {# Coluna lateral #}
+  <div style="flex: 0 0 260px; min-width: 240px;">
+
+    {# Resumo financeiro #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-cash-coin"></i> Resumo financeiro</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela" style="margin: 0;">
+          <tbody>
+            <tr>
+              <td>Equipamentos</td>
+              <td style="text-align: right;">R$ {{ proposta.valor_equipamentos|floatformat:2 }}</td>
+            </tr>
+            <tr>
+              <td>Instalação</td>
+              <td style="text-align: right;">R$ {{ proposta.valor_instalacao|floatformat:2 }}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr style="background: var(--fundo-alt);">
+              <td style="font-weight: 700;">Total</td>
+              <td style="text-align: right; font-weight: 700; font-size: 16px; color: var(--verde);">
+                R$ {{ proposta.valor_total|floatformat:2 }}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    {# Datas #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-calendar3"></i> Datas</div>
+      <div class="card-body">
+        <div style="font-size: 13px; margin-bottom: 8px;">
+          <span style="color: var(--texto-corpo);">Criada em</span><br>
+          <strong>{{ proposta.criado_em|date:"d/m/Y H:i" }}</strong>
+        </div>
+        <div style="font-size: 13px; margin-bottom: 8px;">
+          <span style="color: var(--texto-corpo);">Válida até</span><br>
+          <strong>{{ proposta.validade|date:"d/m/Y" }}</strong>
+        </div>
+        {% if proposta.atualizado_em != proposta.criado_em %}
+        <div style="font-size: 13px;">
+          <span style="color: var(--texto-corpo);">Atualizada em</span><br>
+          <strong>{{ proposta.atualizado_em|date:"d/m/Y H:i" }}</strong>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Ações perigosas #}
+    {% if proposta.status != 'concluida' and proposta.status != 'cancelada' %}
+    <form method="post" action="{% url 'solar:cancelar' proposta.pk %}" style="margin-top: 8px;">
+      {% csrf_token %}
+      <button type="submit" class="btn-secondary" style="width: 100%; text-align: center; color: var(--alerta);"
+              onclick="return confirm('Tem certeza que deseja cancelar esta proposta?')">
+        <i class="bi bi-x-circle"></i> Cancelar proposta
+      </button>
+    </form>
+    {% endif %}
+    <a href="{% url 'solar:excluir' proposta.pk %}" class="btn-secondary"
+       style="width: 100%; text-align: center; color: var(--erro); margin-top: 4px;">
+      <i class="bi bi-trash"></i> Excluir proposta
+    </a>
+
+    {# Ordens de Serviço vinculadas #}
+    {% with ordens=proposta.ordens_servico.all %}
+    {% if ordens %}
+    <div class="card" style="margin-top: 16px;">
+      <div class="card-header"><i class="bi bi-clipboard-check"></i> Ordens de Serviço</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela" style="margin: 0;">
+          <tbody>
+            {% for os in ordens %}
+            <tr>
+              <td>
+                <a href="{% url 'ordens_servico:detalhe' os.pk %}" style="font-weight: 600; font-family: monospace; color: var(--texto-titulo);">{{ os.numero }}</a>
+                <div style="font-size: 11px; color: var(--texto-corpo);">{{ os.tecnico.nome }}</div>
+              </td>
+              <td style="text-align: right;">
+                {% if os.status == 'aberta' %}<span class="badge badge-cinza">Aberta</span>
+                {% elif os.status == 'agendada' %}<span class="badge badge-info">Agendada</span>
+                {% elif os.status == 'em_execucao' %}<span class="badge badge-alerta">Em Execução</span>
+                {% elif os.status == 'concluida' %}<span class="badge badge-verde">Concluída</span>
+                {% elif os.status == 'faturada' %}<span class="badge badge-verde">Faturada</span>
+                {% elif os.status == 'suspensa' %}<span class="badge badge-erro">Suspensa</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+    {% endwith %}
+
+  </div>
+</div>
+{% endblock %}

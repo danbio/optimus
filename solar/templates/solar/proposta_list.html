@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Propostas Solares{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-sun"></i> Propostas Solares</h1>
+  <a href="{% url 'solar:nova' %}" class="btn-primary">
+    <i class="bi bi-plus-lg"></i> Nova Proposta
+  </a>
+</div>
+
+<form method="get" class="card" style="padding: 16px 20px; margin-bottom: 20px;">
+  <div class="d-flex gap-2 align-center" style="flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 220px; position: relative;">
+      <i class="bi bi-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--texto-corpo);"></i>
+      <input type="text" name="q" value="{{ q }}" placeholder="Buscar por número ou cliente..."
+             class="form-control" style="padding-left: 36px;" autocomplete="off">
+    </div>
+    <div class="d-flex gap-1 align-center" style="flex-shrink: 0;">
+      <a href="?q={{ q }}" class="btn-secondary btn-sm{% if not status_filtro %} btn-ativo{% endif %}">Todos</a>
+      {% for valor, label in status_choices %}
+      <a href="?q={{ q }}&status={{ valor }}"
+         class="btn-secondary btn-sm{% if status_filtro == valor %} btn-ativo{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    {% if q %}<button type="submit" class="btn-primary btn-sm"><i class="bi bi-search"></i> Buscar</button>{% endif %}
+  </div>
+</form>
+
+<div class="card" style="overflow: hidden; padding: 0;">
+  {% if propostas %}
+  <table class="tabela" style="margin: 0;">
+    <thead>
+      <tr>
+        <th>Número</th>
+        <th>Cliente</th>
+        <th style="text-align: right;">Potência</th>
+        <th style="text-align: right;">Módulos</th>
+        <th>Inversor</th>
+        <th style="text-align: right;">Total (R$)</th>
+        <th style="width: 100px;">Status</th>
+        <th style="width: 90px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in propostas %}
+      <tr>
+        <td>
+          <a href="{% url 'solar:detalhe' p.pk %}" style="font-weight: 600; color: var(--texto-titulo); font-family: monospace;">
+            {{ p.numero }}
+          </a>
+          <div style="font-size: 11px; color: var(--texto-corpo);">{{ p.criado_em|date:"d/m/Y" }}</div>
+        </td>
+        <td>{{ p.cliente.nome }}</td>
+        <td style="text-align: right; font-weight: 600;">{{ p.potencia_kwp }} kWp</td>
+        <td style="text-align: right;">{{ p.quantidade_modulos }}x {{ p.modulo.potencia_wp }}Wp</td>
+        <td style="font-size: 13px;">{{ p.inversor.fabricante }} {{ p.inversor.modelo }}</td>
+        <td style="text-align: right; font-weight: 600;">
+          R$ {{ p.valor_total|floatformat:2 }}
+        </td>
+        <td>
+          {% if p.status == 'concluida' %}<span class="badge badge-verde"><i class="bi bi-check-circle"></i> Concluída</span>
+          {% elif p.status == 'aprovada' %}<span class="badge badge-verde">Aprovada</span>
+          {% elif p.status == 'enviada' %}<span class="badge badge-info">Enviada</span>
+          {% elif p.status == 'cancelada' %}<span class="badge badge-erro">Cancelada</span>
+          {% else %}<span class="badge badge-cinza">Rascunho</span>{% endif %}
+        </td>
+        <td style="text-align: right;">
+          <a href="{% url 'solar:detalhe' p.pk %}" class="btn-secondary btn-sm" title="Ver"><i class="bi bi-eye"></i></a>
+          <a href="{% url 'solar:editar' p.pk %}" class="btn-secondary btn-sm" title="Editar" style="margin-left: 4px;"><i class="bi bi-pencil"></i></a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if is_paginated %}
+  <div style="padding: 12px 20px; border-top: 1px solid var(--borda-fraca);">
+    <div class="paginacao">
+      {% if page_obj.has_previous %}
+        <a href="?q={{ q }}&status={{ status_filtro }}&page={{ page_obj.previous_page_number }}"><i class="bi bi-chevron-left"></i></a>
+      {% endif %}
+      {% for num in paginator.page_range %}
+        {% if page_obj.number == num %}<span class="atual">{{ num }}</span>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+          <a href="?q={{ q }}&status={{ status_filtro }}&page={{ num }}">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a href="?q={{ q }}&status={{ status_filtro }}&page={{ page_obj.next_page_number }}"><i class="bi bi-chevron-right"></i></a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div style="padding: 60px 20px; text-align: center; color: var(--texto-corpo);">
+    <i class="bi bi-sun" style="font-size: 40px; opacity: 0.3; display: block; margin-bottom: 12px;"></i>
+    {% if q %}
+      <p style="margin: 0; font-size: 15px;">Nenhuma proposta encontrada para <strong>"{{ q }}"</strong>.</p>
+      <a href="{% url 'solar:lista' %}" style="font-size: 14px; margin-top: 8px; display: inline-block;">Limpar busca</a>
+    {% else %}
+      <p style="margin: 0; font-size: 15px;">Nenhuma proposta criada ainda.</p>
+      <a href="{% url 'solar:nova' %}" class="btn-primary" style="margin-top: 16px; display: inline-flex;">
+        <i class="bi bi-plus-lg"></i> Criar primeira proposta
+      </a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
