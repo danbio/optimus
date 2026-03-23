@@ -19,6 +19,8 @@ urlpatterns = [
     path("solar/", include("solar.urls")),
     path("servicos/", include("servicos.urls")),
     path("os/", include("ordens_servico.urls")),
+    path("financeiro/", include("financeiro.urls")),
+    path("balcao/", include("balcao.urls")),
     # Raiz redireciona para dashboard (exige login)
     path("", DashboardView.as_view(), name="home"),
 ]

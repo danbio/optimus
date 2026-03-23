@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Financeiro{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-cash-coin"></i> Financeiro</h1>
+  <div class="page-header-actions">
+    <a href="{% url 'financeiro:dashboard' %}" class="btn-secondary btn-sm">
+      <i class="bi bi-bar-chart-line"></i> Dashboard
+    </a>
+    <a href="{% url 'financeiro:novo' %}" class="btn-primary btn-sm">
+      <i class="bi bi-plus-lg"></i> Novo Lançamento
+    </a>
+  </div>
+</div>
+
+{# KPIs #}
+<div class="d-flex gap-2" style="flex-wrap: wrap; margin-bottom: 20px;">
+  <div class="card" style="flex: 1; min-width: 160px; padding: 16px 20px;">
+    <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--texto-corpo);">Recebido</div>
+    <div style="font-size: 22px; font-weight: 700; color: var(--verde); margin-top: 4px;">R$ {{ total_recebido|floatformat:2 }}</div>
+  </div>
+  <div class="card" style="flex: 1; min-width: 160px; padding: 16px 20px;">
+    <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--texto-corpo);">Pendente</div>
+    <div style="font-size: 22px; font-weight: 700; color: var(--alerta); margin-top: 4px;">R$ {{ total_pendente|floatformat:2 }}</div>
+  </div>
+  <div class="card" style="flex: 1; min-width: 160px; padding: 16px 20px;">
+    <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--texto-corpo);">Vencido</div>
+    <div style="font-size: 22px; font-weight: 700; color: var(--erro); margin-top: 4px;">R$ {{ total_vencido|floatformat:2 }}</div>
+  </div>
+  <div class="card" style="flex: 1; min-width: 160px; padding: 16px 20px;">
+    <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--texto-corpo);">Total filtrado</div>
+    <div style="font-size: 22px; font-weight: 700; color: var(--texto-titulo); margin-top: 4px;">R$ {{ total_liquido|floatformat:2 }}</div>
+  </div>
+</div>
+
+{# Filtros #}
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-body">
+    <form method="get" class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-end;">
+      <div class="form-group" style="flex: 2; min-width: 200px; margin-bottom: 0;">
+        <label style="font-size: 12px; font-weight: 600;">Busca</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Número, cliente, descrição...">
+      </div>
+      <div class="form-group" style="flex: 1; min-width: 130px; margin-bottom: 0;">
+        <label style="font-size: 12px; font-weight: 600;">Status</label>
+        <select name="status" class="form-control">
+          <option value="">Todos</option>
+          {% for val, label in status_choices %}
+            <option value="{{ val }}" {% if status_filtro == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+          <option value="vencido" {% if status_filtro == 'vencido' %}selected{% endif %}>Vencido</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex: 1; min-width: 130px; margin-bottom: 0;">
+        <label style="font-size: 12px; font-weight: 600;">Origem</label>
+        <select name="origem" class="form-control">
+          <option value="">Todas</option>
+          <option value="balcao" {% if origem_filtro == 'balcao' %}selected{% endif %}>Balcão</option>
+          <option value="solar" {% if origem_filtro == 'solar' %}selected{% endif %}>Solar</option>
+          <option value="servico" {% if origem_filtro == 'servico' %}selected{% endif %}>Serviço</option>
+          <option value="os" {% if origem_filtro == 'os' %}selected{% endif %}>OS</option>
+          <option value="manual" {% if origem_filtro == 'manual' %}selected{% endif %}>Manual</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex: 1; min-width: 130px; margin-bottom: 0;">
+        <label style="font-size: 12px; font-weight: 600;">Vencimento de</label>
+        <input type="date" name="data_de" value="{{ data_de }}" class="form-control">
+      </div>
+      <div class="form-group" style="flex: 1; min-width: 130px; margin-bottom: 0;">
+        <label style="font-size: 12px; font-weight: 600;">até</label>
+        <input type="date" name="data_ate" value="{{ data_ate }}" class="form-control">
+      </div>
+      <div style="display: flex; gap: 8px; margin-bottom: 0; align-items: flex-end;">
+        <button type="submit" class="btn-primary btn-sm"><i class="bi bi-search"></i> Filtrar</button>
+        <a href="{% url 'financeiro:lista' %}" class="btn-secondary btn-sm">Limpar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# Tabela #}
+<div class="card">
+  <div class="card-body" style="padding: 0;">
+    {% if lancamentos %}
+    <div style="overflow-x: auto;">
+      <table class="tabela">
+        <thead>
+          <tr>
+            <th>Número</th>
+            <th>Cliente</th>
+            <th>Descrição</th>
+            <th>Origem</th>
+            <th>Vencimento</th>
+            <th class="text-right">Valor</th>
+            <th class="text-right">Recebido</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lan in lancamentos %}
+          {% with origem=lan.origem_display vencido=lan.esta_vencido %}
+          <tr>
+            <td><a href="{% url 'financeiro:detalhe' lan.pk %}">{{ lan.numero }}</a></td>
+            <td>{{ lan.cliente.nome }}</td>
+            <td style="max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ lan.descricao }}</td>
+            <td>
+              <span class="badge badge-{% if origem.1 == 'verde' %}verde{% elif origem.1 == 'laranja' %}alerta{% elif origem.1 == 'azul' %}info{% else %}cinza{% endif %}">
+                {{ origem.0 }}
+              </span>
+            </td>
+            <td style="{% if vencido %}color: var(--erro); font-weight: 600;{% endif %}">
+              {{ lan.data_vencimento|date:"d/m/Y" }}
+              {% if vencido %}<i class="bi bi-exclamation-circle" title="Vencido"></i>{% endif %}
+            </td>
+            <td class="text-right">R$ {{ lan.valor_liquido|floatformat:2 }}</td>
+            <td class="text-right">R$ {{ lan.valor_recebido|floatformat:2 }}</td>
+            <td>
+              {% if vencido and lan.status != 'liquidado' and lan.status != 'cancelado' %}
+                <span class="badge badge-erro">Vencido</span>
+              {% elif lan.status == 'pendente' %}
+                <span class="badge badge-alerta">Pendente</span>
+              {% elif lan.status == 'parcial' %}
+                <span class="badge badge-info">Parcial</span>
+              {% elif lan.status == 'liquidado' %}
+                <span class="badge badge-verde">Liquidado</span>
+              {% else %}
+                <span class="badge badge-cinza">Cancelado</span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{% url 'financeiro:detalhe' lan.pk %}" class="btn-secondary btn-sm">
+                <i class="bi bi-eye"></i>
+              </a>
+              {% if lan.status not in 'liquidado cancelado' %}
+              <a href="{% url 'financeiro:detalhe' lan.pk %}#baixa" class="btn-primary btn-sm">
+                <i class="bi bi-cash"></i>
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endwith %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 48px 20px; color: var(--texto-corpo);">
+      <i class="bi bi-cash-coin" style="font-size: 36px; opacity: 0.3; display: block; margin-bottom: 12px;"></i>
+      <p>Nenhum lançamento encontrado{% if q or status_filtro or origem_filtro %} para os filtros aplicados{% endif %}.</p>
+      {% if q or status_filtro or origem_filtro %}
+        <a href="{% url 'financeiro:lista' %}" class="btn-secondary btn-sm">Limpar filtros</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% if is_paginated %}
+  <div class="card-footer" style="display: flex; justify-content: center; gap: 8px; padding: 12px;">
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}&q={{ q }}&status={{ status_filtro }}&origem={{ origem_filtro }}&data_de={{ data_de }}&data_ate={{ data_ate }}" class="btn-secondary btn-sm">← Anterior</a>
+    {% endif %}
+    <span style="font-size: 13px; color: var(--texto-corpo); padding: 4px 8px;">
+      Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}&q={{ q }}&status={{ status_filtro }}&origem={{ origem_filtro }}&data_de={{ data_de }}&data_ate={{ data_ate }}" class="btn-secondary btn-sm">Próxima →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

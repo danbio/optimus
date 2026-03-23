@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Financeiro{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-bar-chart-line"></i> Dashboard Financeiro</h1>
+  <div class="page-header-actions">
+    <a href="{% url 'financeiro:lista' %}" class="btn-secondary btn-sm">
+      <i class="bi bi-list-ul"></i> Todos os Lançamentos
+    </a>
+  </div>
+</div>
+
+{# Seletor de período #}
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-body">
+    <form method="get" class="d-flex gap-2" style="align-items: flex-end; flex-wrap: wrap;">
+      <div class="d-flex gap-2" style="align-items: center;">
+        <span style="font-size: 13px; font-weight: 600; color: var(--texto-corpo);">Período:</span>
+        <a href="?periodo=mes" class="btn-{% if periodo == 'mes' %}primary{% else %}secondary{% endif %} btn-sm">Este mês</a>
+        <a href="?periodo=trimestre" class="btn-{% if periodo == 'trimestre' %}primary{% else %}secondary{% endif %} btn-sm">Trimestre</a>
+        <a href="?periodo=ano" class="btn-{% if periodo == 'ano' %}primary{% else %}secondary{% endif %} btn-sm">Este ano</a>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: flex-end;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="font-size: 12px;">De</label>
+          <input type="date" name="data_de" value="{{ data_de }}" class="form-control">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="font-size: 12px;">até</label>
+          <input type="date" name="data_ate" value="{{ data_ate }}" class="form-control">
+        </div>
+        <input type="hidden" name="periodo" value="personalizado">
+        <button type="submit" class="btn-primary btn-sm">Aplicar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# KPIs #}
+<div class="d-flex gap-2" style="flex-wrap: wrap; margin-bottom: 20px;">
+  <div class="card" style="flex: 1; min-width: 160px; padding: 20px;">
+    <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--texto-corpo); margin-bottom: 8px;">
+      <i class="bi bi-check-circle"></i> Recebido
+    </div>
+    <div style="font-size: 26px; font-weight: 700; color: var(--verde);">R$ {{ total_recebido|floatformat:2 }}</div>
+  </div>
+  <div class="card" style="flex: 1; min-width: 160px; padding: 20px;">
+    <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--texto-corpo); margin-bottom: 8px;">
+      <i class="bi bi-hourglass-split"></i> Pendente
+    </div>
+    <div style="font-size: 26px; font-weight: 700; color: var(--alerta);">R$ {{ total_pendente|floatformat:2 }}</div>
+  </div>
+  <div class="card" style="flex: 1; min-width: 160px; padding: 20px;">
+    <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--texto-corpo); margin-bottom: 8px;">
+      <i class="bi bi-exclamation-circle"></i> Vencido
+    </div>
+    <div style="font-size: 26px; font-weight: 700; color: var(--erro);">R$ {{ total_vencido|floatformat:2 }}</div>
+  </div>
+  <div class="card" style="flex: 1; min-width: 160px; padding: 20px;">
+    <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--texto-corpo); margin-bottom: 8px;">
+      <i class="bi bi-percent"></i> Inadimplência
+    </div>
+    <div style="font-size: 26px; font-weight: 700; color: {% if inadimplencia_pct > 10 %}var(--erro){% elif inadimplencia_pct > 5 %}var(--alerta){% else %}var(--texto-titulo){% endif %};">
+      {{ inadimplencia_pct }}%
+    </div>
+  </div>
+</div>
+
+<div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-start;">
+
+  {# Gráfico por forma de pagamento #}
+  <div class="card" style="flex: 1; min-width: 280px; margin-bottom: 16px;">
+    <div class="card-header"><i class="bi bi-pie-chart"></i> Recebido por Forma de Pagamento</div>
+    <div class="card-body">
+      {% if formas_sorted %}
+        {% for forma, valor in formas_sorted %}
+        <div style="margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+            <span>{{ forma }}</span>
+            <span style="font-weight: 600; color: var(--verde);">R$ {{ valor|floatformat:2 }}</span>
+          </div>
+          <div style="background: var(--fundo-alt); border-radius: 4px; height: 8px;">
+            <div style="background: var(--verde); border-radius: 4px; height: 8px; width: {% widthratio valor max_forma 100 %}%;"></div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p style="color: var(--texto-corpo); text-align: center; padding: 24px 0; font-size: 14px;">
+          Nenhum recebimento no período.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div style="flex: 2; min-width: 280px;">
+
+    {# Vencimentos próximos #}
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header">
+        <i class="bi bi-calendar-event"></i> Vencendo nos próximos 7 dias
+        {% if proximos %}<span class="badge badge-alerta" style="margin-left: 8px;">{{ proximos|length }}</span>{% endif %}
+      </div>
+      <div class="card-body" style="padding: 0;">
+        {% if proximos %}
+        <table class="tabela">
+          <thead><tr><th>Número</th><th>Cliente</th><th>Vencimento</th><th class="text-right">Saldo</th><th></th></tr></thead>
+          <tbody>
+            {% for lan in proximos %}
+            <tr>
+              <td><a href="{% url 'financeiro:detalhe' lan.pk %}">{{ lan.numero }}</a></td>
+              <td>{{ lan.cliente.nome }}</td>
+              <td>{{ lan.data_vencimento|date:"d/m/Y" }}</td>
+              <td class="text-right" style="font-weight: 600;">R$ {{ lan.saldo_aberto|floatformat:2 }}</td>
+              <td>
+                <a href="{% url 'financeiro:detalhe' lan.pk %}#baixa" class="btn-primary btn-sm">
+                  <i class="bi bi-cash"></i> Baixar
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--texto-corpo); text-align: center; padding: 24px; font-size: 14px;">
+          <i class="bi bi-check-circle" style="color: var(--verde);"></i> Nenhum vencimento nos próximos 7 dias.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Em atraso #}
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-exclamation-triangle"></i> Em Atraso
+        {% if atrasados %}<span class="badge badge-erro" style="margin-left: 8px;">{{ atrasados|length }}</span>{% endif %}
+      </div>
+      <div class="card-body" style="padding: 0;">
+        {% if atrasados %}
+        <table class="tabela">
+          <thead><tr><th>Número</th><th>Cliente</th><th>Vencimento</th><th>Atraso</th><th class="text-right">Saldo</th></tr></thead>
+          <tbody>
+            {% for lan in atrasados %}
+            <tr>
+              <td><a href="{% url 'financeiro:detalhe' lan.pk %}">{{ lan.numero }}</a></td>
+              <td>{{ lan.cliente.nome }}</td>
+              <td style="color: var(--erro);">{{ lan.data_vencimento|date:"d/m/Y" }}</td>
+              <td style="color: var(--erro); font-size: 12px;">
+                {{ today|timeuntil:lan.data_vencimento }} atrás
+              </td>
+              <td class="text-right" style="color: var(--erro); font-weight: 600;">R$ {{ lan.saldo_aberto|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--texto-corpo); text-align: center; padding: 24px; font-size: 14px;">
+          <i class="bi bi-check-circle" style="color: var(--verde);"></i> Nenhum lançamento em atraso.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

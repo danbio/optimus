@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="{% url 'financeiro:lista' %}">Financeiro</a>
+  <span>/</span>
+  <span>{{ titulo }}</span>
+</div>
+
+<div class="page-header">
+  <h1><i class="bi bi-cash-coin"></i> {{ titulo }}</h1>
+</div>
+
+<div style="max-width: 680px;">
+  <form method="post">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div class="alerta alerta-erro">
+      {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header"><i class="bi bi-person"></i> Cliente e Descrição</div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>{{ form.cliente.label }}</label>
+          {{ form.cliente }}
+          {% if form.cliente.errors %}<div style="color:var(--erro);font-size:12px;margin-top:4px;">{{ form.cliente.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label>{{ form.descricao.label }}</label>
+          {{ form.descricao }}
+          {% if form.descricao.errors %}<div style="color:var(--erro);font-size:12px;margin-top:4px;">{{ form.descricao.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header"><i class="bi bi-calculator"></i> Valores</div>
+      <div class="card-body">
+        <div class="d-flex gap-2">
+          <div class="form-group" style="flex: 1;">
+            <label>{{ form.valor_bruto.label }}</label>
+            {{ form.valor_bruto }}
+            {% if form.valor_bruto.errors %}<div style="color:var(--erro);font-size:12px;margin-top:4px;">{{ form.valor_bruto.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>{{ form.desconto.label }}</label>
+            {{ form.desconto }}
+            {% if form.desconto.errors %}<div style="color:var(--erro);font-size:12px;margin-top:4px;">{{ form.desconto.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div style="background: var(--fundo-alt); border-radius: 6px; padding: 10px 14px; font-size: 14px;">
+          Valor líquido: <strong id="valor-liquido-preview">R$ —</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header"><i class="bi bi-credit-card"></i> Pagamento</div>
+      <div class="card-body">
+        <div class="d-flex gap-2">
+          <div class="form-group" style="flex: 2;">
+            <label>{{ form.forma_pagamento.label }}</label>
+            {{ form.forma_pagamento }}
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>{{ form.num_parcelas.label }}</label>
+            {{ form.num_parcelas }}
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>{{ form.data_vencimento.label }}</label>
+            {{ form.data_vencimento }}
+            {% if form.data_vencimento.errors %}<div style="color:var(--erro);font-size:12px;margin-top:4px;">{{ form.data_vencimento.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="form-group">
+          <label>{{ form.observacoes.label }}</label>
+          {{ form.observacoes }}
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn-primary">
+        <i class="bi bi-check-lg"></i> {{ acao }}
+      </button>
+      <a href="{% url 'financeiro:lista' %}" class="btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function() {
+    var bruto = document.getElementById('id_valor_bruto');
+    var desconto = document.getElementById('id_desconto');
+    var preview = document.getElementById('valor-liquido-preview');
+    function atualizar() {
+      var b = parseFloat(bruto.value) || 0;
+      var d = parseFloat(desconto.value) || 0;
+      var liq = b - d;
+      preview.textContent = 'R$ ' + liq.toFixed(2).replace('.', ',');
+      preview.style.color = liq < 0 ? 'var(--erro)' : 'var(--verde)';
+    }
+    bruto.addEventListener('input', atualizar);
+    desconto.addEventListener('input', atualizar);
+    atualizar();
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}{{ lan.numero }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="{% url 'financeiro:lista' %}">Financeiro</a>
+  <span>/</span>
+  <span>{{ lan.numero }}</span>
+</div>
+
+<div class="page-header">
+  <h1>
+    <i class="bi bi-cash-coin"></i> {{ lan.numero }}
+    {% if lan.esta_vencido %}
+      <span class="badge badge-erro" style="font-size: 14px;">Vencido</span>
+    {% elif lan.status == 'pendente' %}
+      <span class="badge badge-alerta" style="font-size: 14px;">Pendente</span>
+    {% elif lan.status == 'parcial' %}
+      <span class="badge badge-info" style="font-size: 14px;">Parcial</span>
+    {% elif lan.status == 'liquidado' %}
+      <span class="badge badge-verde" style="font-size: 14px;">Liquidado</span>
+    {% else %}
+      <span class="badge badge-cinza" style="font-size: 14px;">Cancelado</span>
+    {% endif %}
+  </h1>
+  <div class="page-header-actions">
+    {% if lan.status in 'pendente parcial' %}
+    <a href="{% url 'financeiro:editar' lan.pk %}" class="btn-secondary btn-sm">
+      <i class="bi bi-pencil"></i> Editar
+    </a>
+    {% endif %}
+    <a href="{% url 'financeiro:lista' %}" class="btn-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+</div>
+
+<div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-start;">
+
+  {# Coluna principal #}
+  <div style="flex: 2; min-width: 300px;">
+
+    {# Dados do lançamento #}
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header"><i class="bi bi-info-circle"></i> Dados do Lançamento</div>
+      <div class="card-body">
+        <div class="d-flex gap-2" style="flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 140px;">
+            <div style="font-size: 12px; color: var(--texto-corpo);">Número</div>
+            <div style="font-weight: 600;">{{ lan.numero }}</div>
+          </div>
+          <div style="flex: 1; min-width: 140px;">
+            <div style="font-size: 12px; color: var(--texto-corpo);">Cliente</div>
+            <div style="font-weight: 600;">
+              <a href="{% url 'clientes:detalhe' lan.cliente.pk %}">{{ lan.cliente.nome }}</a>
+            </div>
+          </div>
+          <div style="flex: 1; min-width: 140px;">
+            <div style="font-size: 12px; color: var(--texto-corpo);">Emissão</div>
+            <div>{{ lan.data_emissao|date:"d/m/Y" }}</div>
+          </div>
+          <div style="flex: 1; min-width: 140px;">
+            <div style="font-size: 12px; color: var(--texto-corpo);">Vencimento</div>
+            <div style="{% if lan.esta_vencido %}color: var(--erro); font-weight: 600;{% endif %}">
+              {{ lan.data_vencimento|date:"d/m/Y" }}
+            </div>
+          </div>
+        </div>
+        <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--borda);">
+        <div class="d-flex gap-2" style="flex-wrap: wrap;">
+          <div style="flex: 2; min-width: 200px;">
+            <div style="font-size: 12px; color: var(--texto-corpo);">Descrição</div>
+            <div>{{ lan.descricao }}</div>
+          </div>
+          {% with origem=lan.origem_display %}
+          <div style="flex: 1; min-width: 120px;">
+            <div style="font-size: 12px; color: var(--texto-corpo);">Origem</div>
+            <div>
+              <span class="badge badge-{% if origem.1 == 'verde' %}verde{% elif origem.1 == 'laranja' %}alerta{% elif origem.1 == 'azul' %}info{% else %}cinza{% endif %}">
+                {{ origem.0 }}
+              </span>
+              {% with link=lan.origem_url %}
+              {% if link %}
+                <a href="{% url link.0 link.1 %}" style="font-size: 12px; margin-left: 6px;">ver →</a>
+              {% endif %}
+              {% endwith %}
+            </div>
+          </div>
+          {% endwith %}
+          <div style="flex: 1; min-width: 120px;">
+            <div style="font-size: 12px; color: var(--texto-corpo);">Forma de pagamento</div>
+            <div>{{ lan.get_forma_pagamento_display|default:"—" }}</div>
+          </div>
+          <div style="flex: 1; min-width: 80px;">
+            <div style="font-size: 12px; color: var(--texto-corpo);">Parcelas</div>
+            <div>{{ lan.num_parcelas }}x</div>
+          </div>
+        </div>
+        {% if lan.observacoes %}
+        <div style="margin-top: 12px; font-size: 13px; color: var(--texto-corpo);">
+          <strong>Obs:</strong> {{ lan.observacoes }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Parcelas #}
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header"><i class="bi bi-calendar3"></i> Parcelas</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela">
+          <thead>
+            <tr>
+              <th>Parcela</th>
+              <th>Vencimento</th>
+              <th class="text-right">Valor</th>
+              <th class="text-right">Pago</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for parcela in lan.parcelas.all %}
+            <tr>
+              <td>{{ parcela.numero_parcela }}/{{ lan.num_parcelas }}</td>
+              <td style="{% if parcela.esta_vencida %}color: var(--erro); font-weight: 600;{% endif %}">
+                {{ parcela.data_vencimento|date:"d/m/Y" }}
+              </td>
+              <td class="text-right">R$ {{ parcela.valor|floatformat:2 }}</td>
+              <td class="text-right">R$ {{ parcela.valor_pago|floatformat:2 }}</td>
+              <td>
+                {% if parcela.status == 'pago' %}
+                  <span class="badge badge-verde">Pago</span>
+                {% elif parcela.esta_vencida %}
+                  <span class="badge badge-erro">Vencido</span>
+                {% elif parcela.status == 'cancelado' %}
+                  <span class="badge badge-cinza">Cancelado</span>
+                {% else %}
+                  <span class="badge badge-alerta">Pendente</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" style="text-align: center; color: var(--texto-corpo); padding: 16px;">Sem parcelas registradas.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# Histórico de baixas #}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-clock-history"></i> Histórico de Baixas</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="tabela">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th class="text-right">Valor</th>
+              <th>Forma</th>
+              <th>Registrado por</th>
+              <th>Observação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for baixa in lan.baixas.all %}
+            <tr>
+              <td>{{ baixa.data_pagamento|date:"d/m/Y" }}</td>
+              <td class="text-right" style="color: var(--verde); font-weight: 600;">R$ {{ baixa.valor|floatformat:2 }}</td>
+              <td>{{ baixa.get_forma_pagamento_display }}</td>
+              <td>{{ baixa.registrado_por.get_full_name|default:baixa.registrado_por.username }}</td>
+              <td style="font-size: 13px; color: var(--texto-corpo);">{{ baixa.observacao|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" style="text-align: center; color: var(--texto-corpo); padding: 16px;">Nenhuma baixa registrada.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  {# Coluna lateral #}
+  <div style="flex: 1; min-width: 240px;">
+
+    {# Resumo financeiro #}
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header"><i class="bi bi-calculator"></i> Resumo</div>
+      <div class="card-body">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
+          <span style="color: var(--texto-corpo);">Valor bruto</span>
+          <span>R$ {{ lan.valor_bruto|floatformat:2 }}</span>
+        </div>
+        {% if lan.desconto %}
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: var(--erro);">
+          <span>Desconto</span>
+          <span>- R$ {{ lan.desconto|floatformat:2 }}</span>
+        </div>
+        {% endif %}
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; border-top: 1px solid var(--borda); padding-top: 8px;">
+          <span style="font-weight: 600;">Valor líquido</span>
+          <span style="font-weight: 600;">R$ {{ lan.valor_liquido|floatformat:2 }}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 14px; color: var(--verde);">
+          <span>Recebido</span>
+          <span style="font-weight: 600;">R$ {{ lan.valor_recebido|floatformat:2 }}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; border-top: 1px solid var(--borda); padding-top: 8px; margin-top: 8px; color: {% if lan.saldo_aberto > 0 %}var(--alerta){% else %}var(--verde){% endif %};">
+          <span>Saldo em aberto</span>
+          <span>R$ {{ lan.saldo_aberto|floatformat:2 }}</span>
+        </div>
+        {% if lan.data_liquidacao %}
+        <div style="margin-top: 10px; font-size: 12px; color: var(--texto-corpo); text-align: center;">
+          <i class="bi bi-check-circle-fill" style="color: var(--verde);"></i>
+          Liquidado em {{ lan.data_liquidacao|date:"d/m/Y" }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Registrar Baixa #}
+    {% if lan.status not in 'liquidado cancelado' %}
+    <div class="card" id="baixa">
+      <div class="card-header"><i class="bi bi-cash"></i> Registrar Baixa</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'financeiro:baixa' lan.pk %}">
+          {% csrf_token %}
+          {% for field in baixa_form %}
+          <div class="form-group">
+            <label style="font-size: 13px; font-weight: 600;">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}
+              {% for e in field.errors %}
+                <div style="color: var(--erro); font-size: 12px; margin-top: 4px;">{{ e }}</div>
+              {% endfor %}
+            {% endif %}
+          </div>
+          {% endfor %}
+          <button type="submit" class="btn-primary w-100" style="margin-top: 8px;">
+            <i class="bi bi-check-lg"></i> Confirmar Baixa
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Cancelar #}
+    {% if lan.status not in 'liquidado cancelado' %}
+    <div style="margin-top: 12px;">
+      <form method="post" action="{% url 'financeiro:cancelar' lan.pk %}"
+        onsubmit="return confirm('Cancelar o lançamento {{ lan.numero }}? Esta ação não pode ser desfeita.')">
+        {% csrf_token %}
+        <button type="submit" class="btn-secondary btn-sm w-100" style="color: var(--erro);">
+          <i class="bi bi-x-circle"></i> Cancelar Lançamento
+        </button>
+      </form>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
