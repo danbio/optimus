@@ -83,7 +83,7 @@ class <NomeModel>Admin(admin.ModelAdmin):
 
 ### 6. Templates (`<app>/templates/<app>/`)
 
-Criar 4 arquivos usando os padrões de `bs5-components` skill:
+Criar 4 arquivos usando os padrões de `frontend-intelbras` skill:
 
 - `<nomemodel>_list.html` — tabela responsiva com paginação, botão "Novo", ações por linha
 - `<nomemodel>_form.html` — formulário com csrf_token, botões Salvar/Cancelar

@@ -56,7 +56,19 @@ Execute os seguintes passos em ordem:
 Convenções obrigatórias:
 - Nomes de campos e verbose_name em português
 - `__str__` definido em todo model
+- **Todo model deve herdar de `core.models.BaseModel`**, não de `models.Model` diretamente:
+  ```python
+  from core.models import BaseModel
+
+  class NomeModel(BaseModel):
+      ...
+  ```
 - CBVs (CreateView, UpdateView, DeleteView, ListView, DetailView) para CRUD
 - Formulários Django — nunca HTML puro
+- **Type Hints obrigatórios** em todas as views e services:
+  ```python
+  from django.http import HttpRequest, HttpResponse
+  def minha_view(request: HttpRequest, pk: int) -> HttpResponse: ...
+  ```
 
 Ao final, mostre um resumo dos arquivos criados/modificados e o próximo passo sugerido.

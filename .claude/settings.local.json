@@ -41,7 +41,14 @@
       "Bash(xargs ls:*)",
       "Bash(.venv/Scripts/python manage.py makemigrations servicos)",
       "Bash(.venv/Scripts/python manage.py check servicos)",
-      "Bash(.venv/Scripts/python manage.py check --deploy)"
+      "Bash(.venv/Scripts/python manage.py check --deploy)",
+      "Bash(.venv/Scripts/python manage.py makemigrations solar)",
+      "Bash(.venv/Scripts/python -c \"import django; print\\(django.__version__\\)\")",
+      "Bash(.venv/Scripts/python manage.py makemigrations solar --empty --name popular_precos_iniciais)",
+      "Bash(.venv/Scripts/python -c ':*)",
+      "Bash(.venv/Scripts/python manage.py makemigrations)",
+      "Bash(.venv/Scripts/python manage.py test solar --verbosity=2)",
+      "Bash(.venv/Scripts/python manage.py test solar --verbosity=1)"
     ],
     "additionalDirectories": [
       "c:\\Desenvolvimento\\optimus\\Optimus\\.claude"
