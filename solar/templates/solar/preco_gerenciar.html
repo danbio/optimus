@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Preços — {{ equipamento }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-currency-dollar"></i> Preços — {{ tipo_label }}</h1>
+  <a href="{{ voltar_url }}" class="btn-secondary">
+    <i class="bi bi-arrow-left"></i> Voltar
+  </a>
+</div>
+
+<p style="color: var(--texto-secundario); margin-bottom: 20px;">
+  <strong>{{ equipamento }}</strong>
+</p>
+
+{% if preco_vigente %}
+  <div class="alerta alerta-sucesso" style="margin-bottom: 20px;">
+    <i class="bi bi-check-circle"></i>
+    Preço vigente: <strong>R$ {{ preco_vigente.preco_venda }}</strong>
+    (custo: R$ {{ preco_vigente.preco_custo }}) — desde {{ preco_vigente.vigente_desde }}
+  </div>
+{% else %}
+  <div class="alerta alerta-aviso" style="margin-bottom: 20px;">
+    <i class="bi bi-exclamation-triangle"></i>
+    Este equipamento não possui preço vigente. Propostas criadas com ele terão valor R$ 0,00.
+  </div>
+{% endif %}
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+
+  <!-- Novo preço -->
+  <div class="card">
+    <div class="card-header"><i class="bi bi-plus-circle"></i> Cadastrar novo preço</div>
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="form-group">
+          <label for="id_preco_custo">Preço de Custo (R$) <span class="obrigatorio">*</span></label>
+          {{ form.preco_custo }}
+          {% if form.preco_custo.errors %}
+            <div class="form-error">{{ form.preco_custo.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+        <div class="form-group">
+          <label for="id_preco_venda">Preço de Venda (R$) <span class="obrigatorio">*</span></label>
+          {{ form.preco_venda }}
+          {% if form.preco_venda.errors %}
+            <div class="form-error">{{ form.preco_venda.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+        <div class="form-group">
+          <label for="id_vigente_desde">Vigente desde <span class="obrigatorio">*</span></label>
+          {{ form.vigente_desde }}
+          {% if form.vigente_desde.errors %}
+            <div class="form-error">{{ form.vigente_desde.errors|join:", " }}</div>
+          {% endif %}
+          <small style="color: var(--texto-secundario);">O preço anterior será encerrado automaticamente.</small>
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%;">
+          <i class="bi bi-check-lg"></i> Salvar preço
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Histórico -->
+  <div class="card">
+    <div class="card-header"><i class="bi bi-clock-history"></i> Histórico de preços</div>
+    {% if historico %}
+      <table class="tabela">
+        <thead>
+          <tr>
+            <th>Desde</th>
+            <th>Até</th>
+            <th>Custo</th>
+            <th>Venda</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in historico %}
+            <tr {% if not p.vigente_ate %}style="background: var(--fundo-alt);"{% endif %}>
+              <td>{{ p.vigente_desde }}</td>
+              <td>
+                {% if p.vigente_ate %}
+                  {{ p.vigente_ate }}
+                {% else %}
+                  <span class="badge badge-verde">Vigente</span>
+                {% endif %}
+              </td>
+              <td>R$ {{ p.preco_custo }}</td>
+              <td><strong>R$ {{ p.preco_venda }}</strong></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="card-body" style="text-align: center; color: var(--texto-secundario);">
+        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+        <p>Nenhum preço cadastrado.</p>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

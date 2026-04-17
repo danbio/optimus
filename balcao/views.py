@@ -150,7 +150,7 @@ def buscar_produto(request):
     if q.replace(".", "").isdigit():
         filtro |= Q(codigo__icontains=q, ativo=True)
 
-    produtos = Produto.objects.filter(filtro).values("pk", "codigo", "descricao", "pscf")[:15]
+    produtos = Produto.objects.filter(filtro).values("pk", "codigo", "descricao", "pscf", "quantidade_estoque")[:15]
     return render(request, "balcao/_produto_resultados.html", {"produtos": produtos})
 
 
@@ -182,18 +182,40 @@ def finalizar_venda(request, pk):
         return redirect("balcao:editar", pk=pk)
 
     with transaction.atomic():
+        from estoque.models import Produto
+
+        itens = list(venda.itens.select_related("produto").all())
+        produtos = Produto.objects.select_for_update().filter(pk__in=[item.produto_id for item in itens]).in_bulk()
+        solicitado_por_produto = {}
+        for item in itens:
+            solicitado_por_produto[item.produto_id] = solicitado_por_produto.get(item.produto_id, 0) + item.quantidade
+
+        indisponiveis = []
+        for produto_id, solicitado in solicitado_por_produto.items():
+            produto = produtos.get(produto_id)
+            if not produto:
+                indisponiveis.append("Produto indisponível no carrinho")
+                continue
+            if produto.quantidade_estoque < solicitado:
+                indisponiveis.append(
+                    f"{produto.descricao} (disponível: {produto.quantidade_estoque}, solicitado: {solicitado})"
+                )
+
+        if indisponiveis:
+            trecho = "; ".join(indisponiveis[:3])
+            sufixo = "..." if len(indisponiveis) > 3 else ""
+            messages.error(request, f"Estoque insuficiente para finalizar a venda: {trecho}{sufixo}")
+            return redirect("balcao:editar", pk=pk)
+
         venda.recalcular_totais()
         venda.status = Venda.STATUS_FINALIZADA
         venda.operador = request.user
         venda.save()
 
-        # Baixar estoque
-
-        for item in venda.itens.select_related("produto").all():
-            produto = item.produto
-            if hasattr(produto, "quantidade_estoque"):
-                produto.quantidade_estoque = max((produto.quantidade_estoque or 0) - float(item.quantidade), 0)
-                produto.save(update_fields=["quantidade_estoque"])
+        for produto_id, solicitado in solicitado_por_produto.items():
+            produto = produtos[produto_id]
+            produto.quantidade_estoque = produto.quantidade_estoque - solicitado
+            produto.save(update_fields=["quantidade_estoque"])
 
         # Gerar lançamento financeiro
         from financeiro.services import criar_lancamento_de_venda_balcao

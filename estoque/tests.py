@@ -61,6 +61,20 @@ class ImportacaoTest(TestCase):
         self.assertEqual(cam.descricao, "Câmera IP 4MP Full HD")
         self.assertAlmostEqual(float(cam.psd), 450.00)
         self.assertAlmostEqual(float(cam.pscf), 699.00)
+        self.assertAlmostEqual(float(cam.quantidade_estoque), 0.00)
+
+    def test_importar_com_coluna_estoque(self):
+        """Quando a planilha traz saldo, campo quantidade_estoque deve ser atualizado."""
+        xlsx = _xlsx(
+            [
+                ["Codigo", "Descricao", "PSD", "PSCF", "Estoque"],
+                [10005, "Sensor de presença", 80.00, 129.00, 18.50],
+            ]
+        )
+        self.client.post(self.URL, {"arquivo": _upload(xlsx)}, follow=True)
+
+        produto = Produto.objects.get(codigo=10005)
+        self.assertAlmostEqual(float(produto.quantidade_estoque), 18.50)
 
     # ── 2. Cabeçalhos acentuados (padrão planilha Intelbras) ───────────────────
 

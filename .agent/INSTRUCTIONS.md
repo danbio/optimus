@@ -23,19 +23,20 @@ ERP interno para empresa de Tocantins/BR com 3 linhas de negócio:
 
 ### Apps implementados e status:
 
-| App | Status | Observações |
-|-----|--------|-------------|
-| `core` | ✅ Completo | `BaseModel` abstrato com `criado_em`/`atualizado_em` |
-| `clientes` | ✅ Completo | CRUD PF/PJ, validação CPF/CNPJ, busca CEP/CNPJ |
-| `estoque` | ✅ Completo | Produtos Intelbras, importação `.xlsb`/`.xlsx` |
-| `solar` | ✅ Completo | Dimensionamento HTMX, proposta, catálogo de equipamentos com preços, quantidades editáveis |
-| `servicos` | ✅ Completo | Proposta por tipo (segurança, automação, acesso) |
-| `ordens_servico` | ✅ Completo | OS unificada, checklist, fotos, técnico |
-| `financeiro` | ✅ Completo | Lançamentos, parcelas, baixas, dashboard |
-| `balcao` | ✅ Completo | PDV com carrinho HTMX, baixa de estoque, lançamento financeiro |
-| `pos_venda` | 🔲 Pendente | App criado, sem implementação ainda |
+| App              | Status     | Observações                                                                                |
+| ---------------- | ---------- | ------------------------------------------------------------------------------------------ |
+| `core`           | ✅ Completo | `BaseModel` abstrato com `criado_em`/`atualizado_em`                                       |
+| `clientes`       | ✅ Completo | CRUD PF/PJ, validação CPF/CNPJ, busca CEP/CNPJ                                             |
+| `estoque`        | ✅ Completo | Produtos Intelbras, importação `.xlsb`/`.xlsx`                                             |
+| `solar`          | ✅ Completo | Dimensionamento HTMX, proposta, catálogo de equipamentos com preços, quantidades editáveis |
+| `servicos`       | ✅ Completo | Proposta por tipo (segurança, automação, acesso)                                           |
+| `ordens_servico` | ✅ Completo | OS unificada, checklist, fotos, técnico                                                    |
+| `financeiro`     | ✅ Completo | Lançamentos, parcelas, baixas, dashboard                                                   |
+| `balcao`         | ✅ Completo | PDV com carrinho HTMX, baixa de estoque, lançamento financeiro                             |
+| `pos_venda`      | 🔲 Pendente | App criado, sem implementação ainda                                                        |
 
 ### Dívida técnica em andamento (ver `.agent/ROADMAP.md`):
+
 1. **Type Hints** — faltam em todas as views e services
 2. **Async-First** — dashboards e finalizações ainda são síncronos
 3. **RBAC** — sem controle de permissão por grupo ainda
@@ -57,7 +58,7 @@ ERP interno para empresa de Tocantins/BR com 3 linhas de negócio:
 
 ## Estrutura de Arquivos do Projeto
 
-```
+```mermaid
 Optimus/
 ├── .agent/              # ← Base de conhecimento compartilhada (SSOT)
 │   ├── INSTRUCTIONS.md  # este arquivo
@@ -209,6 +210,7 @@ Este projeto é gerenciado em parceria multi-agente:
 - **GitHub Copilot** (VSCode inline) — autocomplete assistido pelas instruções em `.github/copilot-instructions.md`
 
 **Regras:**
+
 - Perguntar antes de implementar em caso de dúvida arquitetural
 - Implementar um app/feature por vez, validar, depois avançar
 - Atualizar `.agent/DIARIO.md` ao final de cada sessão significativa
@@ -218,16 +220,16 @@ Este projeto é gerenciado em parceria multi-agente:
 
 ## Skills Disponíveis (Claude Code — `.claude/skills/`)
 
-| Arquivo | Conteúdo |
-|---------|----------|
-| `frontend-intelbras.md` | Paleta, tipografia, classes CSS, padrões de template |
-| `intelbras-theme.md` | Paleta de cores e decisões de UI |
-| `django-models.md` | Padrões de model (TextChoices, Meta, __str__) |
-| `django-forms.md` | Padrões de form (class, autocomplete, overrides) |
-| `django-views.md` | Padrões de CBV (LoginRequiredMixin, select_related) |
-| `solar-domain.md` | Domínio solar: fórmulas, fluxo, campos esperados |
-| `financeiro-domain.md` | Domínio financeiro: models, services, regras de negócio |
-| `clientes-domain.md` | Domínio clientes: validações, campos, integrações |
+| Arquivo                 | Conteúdo                                                |
+| ----------------------- | ------------------------------------------------------- |
+| `frontend-intelbras.md` | Paleta, tipografia, classes CSS, padrões de template    |
+| `intelbras-theme.md`    | Paleta de cores e decisões de UI                        |
+| `django-models.md`      | Padrões de model (TextChoices, Meta, __str__)           |
+| `django-forms.md`       | Padrões de form (class, autocomplete, overrides)        |
+| `django-views.md`       | Padrões de CBV (LoginRequiredMixin, select_related)     |
+| `solar-domain.md`       | Domínio solar: fórmulas, fluxo, campos esperados        |
+| `financeiro-domain.md`  | Domínio financeiro: models, services, regras de negócio |
+| `clientes-domain.md`    | Domínio clientes: validações, campos, integrações       |
 
 ---
 

@@ -77,6 +77,11 @@
           {{ form.qtd_multipla }}
           {% if form.qtd_multipla.errors %}<div class="form-error">{% for e in form.qtd_multipla.errors %}{{ e }}{% endfor %}</div>{% endif %}
         </div>
+        <div class="form-group" style="flex: 0 0 160px;">
+          <label for="id_quantidade_estoque">Saldo em estoque</label>
+          {{ form.quantidade_estoque }}
+          {% if form.quantidade_estoque.errors %}<div class="form-error">{% for e in form.quantidade_estoque.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
       </div>
     </div>
   </div>

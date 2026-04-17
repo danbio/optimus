@@ -129,7 +129,7 @@ def criar_lancamento_de_venda_balcao(venda):
         from .models import BaixaFinanceira
 
         parcela = lan.parcelas.first()
-        baixa = BaixaFinanceira.objects.create(
+        BaixaFinanceira.objects.create(
             lancamento=lan,
             parcela=parcela,
             valor=lan.valor_liquido,

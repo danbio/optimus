@@ -390,6 +390,22 @@ select.form-control { cursor: pointer; }
   padding-left: 34px !important;
 }
 
+/* ── SIDEBAR NESTED (2º Nível) ── */
+.sidebar-sub details summary {
+  padding-left: 38px !important;
+  font-size: 14px;
+  background: rgba(0,0,0,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.sidebar-sub details[open] > summary { background: rgba(0,0,0,0.12); }
+.sidebar-sub details .sidebar-sub a {
+  padding-left: 58px !important;
+  background: rgba(0,0,0,0.10);
+}
+.sidebar-sub details .sidebar-sub a.active {
+  padding-left: 54px !important;
+}
+
 /* ── BOTÃO FILTRO ATIVO ── */
 .btn-ativo {
   background: var(--verde) !important;

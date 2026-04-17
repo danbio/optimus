@@ -1,4 +1,5 @@
-from django.db import models
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
 from core.models import BaseModel
@@ -115,18 +116,56 @@ class OrdemServico(BaseModel):
         verbose_name = "ordem de serviço"
         verbose_name_plural = "ordens de serviço"
         ordering = ["-criado_em"]
+        constraints = [
+            models.CheckConstraint(
+                condition=~(models.Q(proposta_solar__isnull=False) & models.Q(proposta_servico__isnull=False)),
+                name="os_apenas_uma_proposta_origem",
+            )
+        ]
 
     def __str__(self):
         return f"{self.numero} — {self.cliente.nome}"
 
+    def clean(self):
+        super().clean()
+
+        if self.proposta_solar_id and self.proposta_servico_id:
+            raise ValidationError("Uma OS não pode estar vinculada a Proposta Solar e Proposta de Serviço ao mesmo tempo.")
+
+        if self.proposta_solar_id and self.cliente_id:
+            from solar.models import PropostaSolar
+
+            cliente_proposta_id = PropostaSolar.objects.filter(pk=self.proposta_solar_id).values_list("cliente_id", flat=True).first()
+            if cliente_proposta_id and cliente_proposta_id != self.cliente_id:
+                raise ValidationError({"cliente": "O cliente da OS deve ser o mesmo da Proposta Solar vinculada."})
+
+        if self.proposta_servico_id and self.cliente_id:
+            from servicos.models import PropostaServico
+
+            cliente_proposta_id = PropostaServico.objects.filter(pk=self.proposta_servico_id).values_list("cliente_id", flat=True).first()
+            if cliente_proposta_id and cliente_proposta_id != self.cliente_id:
+                raise ValidationError({"cliente": "O cliente da OS deve ser o mesmo da Proposta de Serviço vinculada."})
+
+    def _gerar_numero(self):
+        now = timezone.now()
+        prefix = f"OS-{now.strftime('%Y%m')}-"
+        last = OrdemServico.objects.filter(numero__startswith=prefix).order_by("numero").last()
+        seq = (int(last.numero.split("-")[-1]) + 1) if last else 1
+        return f"{prefix}{seq:04d}"
+
     def save(self, *args, **kwargs):
-        if not self.numero:
-            now = timezone.now()
-            prefix = f"OS-{now.strftime('%Y%m')}-"
-            last = OrdemServico.objects.filter(numero__startswith=prefix).order_by("numero").last()
-            seq = (int(last.numero.split("-")[-1]) + 1) if last else 1
-            self.numero = f"{prefix}{seq:04d}"
-        super().save(*args, **kwargs)
+        self.clean()
+        if self.numero:
+            return super().save(*args, **kwargs)
+
+        for _ in range(5):
+            self.numero = self._gerar_numero()
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                self.numero = ""
+        raise IntegrityError("Falha ao gerar número único para Ordem de Serviço após múltiplas tentativas.")
 
     @property
     def tipo_origem(self):

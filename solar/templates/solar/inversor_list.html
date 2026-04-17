@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Inversores{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-lightning-charge"></i> Inversores</h1>
+  <a href="{% url 'solar:inversor_novo' %}" class="btn-primary">
+    <i class="bi bi-plus-lg"></i> Novo Inversor
+  </a>
+</div>
+
+<form method="get" class="card" style="padding: 16px 20px; margin-bottom: 20px;">
+  <div class="d-flex gap-2 align-center" style="flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 220px; position: relative;">
+      <i class="bi bi-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--texto-corpo);"></i>
+      <input type="text" name="q" value="{{ q }}" placeholder="Buscar por fabricante ou modelo..."
+             class="form-control" style="padding-left: 36px;" autocomplete="off">
+    </div>
+    <select name="tipo" class="form-control" style="width: auto; flex-shrink: 0;">
+      <option value="">Todos os tipos</option>
+      {% for valor, label in tipo_choices %}
+        <option value="{{ valor }}" {% if tipo_filtro == valor %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="ativo" class="form-control" style="width: auto; flex-shrink: 0;">
+      <option value="1" {% if ativo_filtro == "1" %}selected{% endif %}>Ativos</option>
+      <option value="0" {% if ativo_filtro == "0" %}selected{% endif %}>Inativos</option>
+    </select>
+    <button type="submit" class="btn-primary btn-sm"><i class="bi bi-search"></i> Filtrar</button>
+    {% if q or tipo_filtro %}
+      <a href="{% url 'solar:inversores' %}" class="btn-secondary btn-sm">Limpar</a>
+    {% endif %}
+  </div>
+</form>
+
+<div class="card" style="overflow: hidden; padding: 0;">
+  {% if inversores %}
+  <table class="tabela" style="margin: 0;">
+    <thead>
+      <tr>
+        <th>Fabricante / Modelo</th>
+        <th style="text-align: center;">Potência (kW)</th>
+        <th style="text-align: center;">Tipo</th>
+        <th style="text-align: center;">Fase</th>
+        <th style="text-align: center;">MPPTs</th>
+        <th style="text-align: center;">Garantia (anos)</th>
+        <th style="text-align: right;">Preço de Venda</th>
+        <th style="width: 60px; text-align: center;">Ativo</th>
+        <th style="width: 130px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv, preco in inversores_precos %}
+      <tr>
+        <td>
+          <span style="font-weight: 600; color: var(--texto-titulo);">{{ inv.fabricante }}</span>
+          <span style="color: var(--texto-corpo);">{{ inv.modelo }}</span>
+        </td>
+        <td style="text-align: center; font-weight: 600;">{{ inv.potencia_kw }}</td>
+        <td style="text-align: center;">
+          {% if inv.tipo == 'string' %}<span class="badge badge-verde">String</span>
+          {% elif inv.tipo == 'micro' %}<span class="badge badge-info">Micro</span>
+          {% else %}<span class="badge badge-cinza">Híbrido</span>{% endif %}
+        </td>
+        <td style="text-align: center; font-size: 13px;">{{ inv.get_fase_display }}</td>
+        <td style="text-align: center;">{{ inv.quantidade_mppt }}</td>
+        <td style="text-align: center;">{{ inv.garantia }}</td>
+        <td style="text-align: right; white-space: nowrap;">
+          {% if preco %}
+            <strong>R$ {{ preco.preco_venda }}</strong>
+          {% else %}
+            <a href="{% url 'solar:inversor_precos' inv.pk %}" class="badge" style="background: var(--erro); color: #fff; text-decoration: none;">Sem preço</a>
+          {% endif %}
+        </td>
+        <td style="text-align: center;">
+          {% if inv.ativo %}
+            <i class="bi bi-check-circle-fill" style="color: var(--verde);"></i>
+          {% else %}
+            <i class="bi bi-x-circle" style="color: var(--erro);"></i>
+          {% endif %}
+        </td>
+        <td style="text-align: right; white-space: nowrap;">
+          <a href="{% url 'solar:inversor_precos' inv.pk %}" class="btn-secondary btn-sm" title="Gerenciar Preços">
+            <i class="bi bi-currency-dollar"></i>
+          </a>
+          <a href="{% url 'solar:inversor_editar' inv.pk %}" class="btn-secondary btn-sm" title="Editar" style="margin-left: 4px;">
+            <i class="bi bi-pencil"></i>
+          </a>
+          <a href="{% url 'solar:inversor_excluir' inv.pk %}" class="btn-secondary btn-sm" title="Excluir" style="margin-left: 4px;">
+            <i class="bi bi-trash"></i>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if is_paginated %}
+  <div style="padding: 12px 20px; border-top: 1px solid var(--borda-fraca);">
+    <div class="paginacao">
+      {% if page_obj.has_previous %}
+        <a href="?q={{ q }}&tipo={{ tipo_filtro }}&ativo={{ ativo_filtro }}&page={{ page_obj.previous_page_number }}"><i class="bi bi-chevron-left"></i></a>
+      {% endif %}
+      {% for num in paginator.page_range %}
+        {% if page_obj.number == num %}<span class="atual">{{ num }}</span>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+          <a href="?q={{ q }}&tipo={{ tipo_filtro }}&ativo={{ ativo_filtro }}&page={{ num }}">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a href="?q={{ q }}&tipo={{ tipo_filtro }}&ativo={{ ativo_filtro }}&page={{ page_obj.next_page_number }}"><i class="bi bi-chevron-right"></i></a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div style="padding: 60px 20px; text-align: center; color: var(--texto-corpo);">
+    <i class="bi bi-lightning-charge" style="font-size: 40px; opacity: 0.3; display: block; margin-bottom: 12px;"></i>
+    {% if q or tipo_filtro %}
+      <p style="margin: 0; font-size: 15px;">Nenhum inversor encontrado para os filtros aplicados.</p>
+      <a href="{% url 'solar:inversores' %}" style="font-size: 14px; margin-top: 8px; display: inline-block;">Limpar filtros</a>
+    {% else %}
+      <p style="margin: 0; font-size: 15px;">Nenhum inversor cadastrado ainda.</p>
+      <a href="{% url 'solar:inversor_novo' %}" class="btn-primary" style="margin-top: 16px; display: inline-flex;">
+        <i class="bi bi-plus-lg"></i> Cadastrar primeiro inversor
+      </a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

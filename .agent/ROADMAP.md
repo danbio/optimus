@@ -1,7 +1,7 @@
 # ROADMAP DE DESENVOLVIMENTO: ERP Optimus
 
 > Documento de dívida técnica, gargalos e evolução sistêmica.
-> Atualizado: 2026-04-14.
+> Atualizado: 2026-04-15.
 
 ---
 
@@ -9,26 +9,51 @@
 
 | Item | Status | Bloqueia |
 |------|--------|----------|
-| Type Hints em views/services | 🔴 Pendente | Fase 2 (Async requer tipos corretos) |
+| Type Hints em views/services | 🔴 ~3% cobertura (24/725 funções) | Fase 2 (Async requer tipos corretos) |
+| Testes em apps sem cobertura | 🔴 0 testes em clientes, servicos, financeiro, pos_venda | Refatoração segura |
+| Quebrar views >300 linhas | 🟡 solar feito, faltam ordens_servico, financeiro, estoque, servicos | Edição confiável por agentes |
+| Inline styles nos templates | 🟡 ~1190 ocorrências | Consistência de patches |
 | Async Views / Background Tasks | 🟡 Pendente | Nada, mas depende da Fase 1 |
 | RBAC (grupos de permissão) | 🟠 Pendente | Implantação em produção |
-| `pos_venda` (SLAs e chamados) | 🔲 Backlog | Pós-venda só após RBAC |
-| PDF de propostas | 🔲 Backlog | Independente, pode ser feito a qualquer momento |
+| PDF de propostas | 🔲 Backlog | Independente |
 
 ---
 
-## Fase 1 — Conformidade com Strict Mode: Type Hints 🔴
+## Fase 0 — Infraestrutura para Agentes (NOVA)
 
-**Prioridade:** Alta — bloqueia a adoção de async views (Fase 2).
+**Prioridade:** Crítica — melhora diretamente a qualidade das edições dos agentes de IA.
 
-**Problema:** Nenhuma view nem service tem assinaturas tipadas. O Strict Mode exige Type Hints completos.
+### Já concluído:
+- [x] `AGENTS.md` unificado na raiz
+- [x] `scripts/check.ps1` (lint + testes + migrations + deploy check)
+- [x] Quebra do `solar/views.py` em subpacote (`propostas.py`, `catalogo.py`, `precos.py`)
+- [x] Atualização de SSOT (pos_venda está implementado, não pendente)
 
-**Onde aplicar:**
-- `balcao/views.py` — todas as FBVs (ex: `finalizar_venda`, `adicionar_item`)
-- `financeiro/views.py` — FBVs (`registrar_baixa`, `cancelar_lancamento`, `dashboard`)
-- `financeiro/services.py` — todas as funções de service
-- `solar/views.py` — FBVs e CBVs
+### Pendente:
+- [ ] Quebrar `ordens_servico/views.py` (497 linhas)
+- [ ] Quebrar `estoque/views.py` (346 linhas)
+- [ ] Quebrar `servicos/views.py` (305 linhas)
+- [ ] Quebrar `financeiro/views.py` (305 linhas)
+- [ ] Limpar worktree (commit organizado das 125+ entradas pendentes)
+- [ ] Migrar DIARIO.md para formato compacto (TL;DR + últimas 5 sessões)
+
+---
+
+## Fase 1 — Conformidade: Type Hints + Testes 🔴
+
+**Prioridade:** Alta — bloqueia a adoção de async views (Fase 2) e refatoração segura.
+
+### Type Hints
+
+**Onde aplicar (por prioridade de edição dos agentes):**
+- `solar/views/propostas.py` — ✅ já tipado na quebra
+- `solar/views/catalogo.py` — parcialmente tipado
+- `solar/views/precos.py` — ✅ já tipado na quebra
+- `financeiro/views.py` — FBVs e services
+- `financeiro/services.py` — todas as funções
 - `ordens_servico/views.py` — FBVs
+- `balcao/views.py` — FBVs
+- `pos_venda/views.py` — FBVs
 
 **Padrão mínimo exigido:**
 ```python
@@ -38,7 +63,17 @@ def finalizar_venda(request: HttpRequest, pk: int) -> HttpResponse:
     ...
 ```
 
-**Critério de conclusão:** `ruff check --select ANN` sem erros em todos os apps listados.
+**Critério de conclusão:** `ruff check --select ANN` sem erros em todos os apps.
+
+### Testes
+
+**Apps sem nenhum teste (prioridade):**
+- `clientes` — testar CRUD, validação CPF/CNPJ
+- `servicos` — testar CRUD de propostas, transições de status
+- `financeiro` — testar lançamentos, parcelas, baixas, services
+- `pos_venda` — testar chamados, interações, mudança de status
+
+**Critério de conclusão:** cada app com pelo menos 1 TestCase cobrindo happy path do CRUD.
 
 ---
 
@@ -69,49 +104,46 @@ async def dashboard(request: HttpRequest) -> HttpResponse:
 | `criar_lancamento_de_venda_balcao` | Bloqueia a thread do PDV ao finalizar |
 | Atualização de `status=vencido` em lote | Deve rodar periodicamente, não em cada request |
 
-**⚠️ Atenção:** O backend de tasks do Django 6.x com SQLite tem limitações. Avaliar trade-offs antes de implementar em produção com SQLite.
+**⚠️ Atenção:** O backend de tasks do Django 6.x com SQLite tem limitações.
 
 ---
 
 ## Fase 3 — Evolução de Features
 
 ### PDF de Propostas
-- **O que:** Renderizar `proposta_detail.html` como PDF imprimível (A4, CSS `@media print`)
-- **Como:** Adicionar `?print=1` na URL da detail view → renderiza template sem sidebar/topbar → CSS `@media print` formata para A4
-- **Sem bibliotecas externas:** CSS puro + `window.print()` via link `<a onclick="window.print()">` é suficiente
-- **Não depende de nenhuma fase anterior**
+- CSS `@media print` + `window.print()` — sem bibliotecas externas
+- Não depende de nenhuma fase anterior
 
-### `pos_venda` — SLAs e Chamados
-- Estruturar models: `Chamado`, `HistoricoChamado`, `GarantiaInstalacao`
-- Vinculado à `OrdemServico` de origem (rastreabilidade)
-- SLA baseado na data de conclusão da OS de instalação
+### `pos_venda` — Evolução
+- ✅ CRUD de chamados implementado
+- ✅ Interações e histórico do cliente implementados
+- Pendente: SLAs, garantias, relatórios
 
 ---
 
 ## Fase 4 — RBAC (Controle de Acesso) 🟠
 
-**Prioridade:** Necessário antes de colocar em produção com múltiplos usuários.
+**Prioridade:** Necessário antes de produção com múltiplos usuários.
 
-**Grupos a criar:**
 | Grupo | Permissões |
 |-------|-----------|
-| `admin` | Todos os módulos, incluindo cancelar lançamentos liquidados |
-| `vendedor` | Criar propostas, fechar venda balcão. Sem acesso a financeiro |
-| `tecnico` | Ler/atualizar OS atribuídas. Sem acesso a financeiro ou preços |
-| `financeiro` | Financeiro completo. Apenas leitura em propostas |
+| `admin` | Todos os módulos |
+| `vendedor` | Criar propostas, venda balcão. Sem financeiro |
+| `tecnico` | Ler/atualizar OS atribuídas. Sem financeiro/preços |
+| `financeiro` | Financeiro completo. Leitura em propostas |
 | `gerente` | Tudo exceto configurações de sistema |
 
-**Implementação:** `LoginRequiredMixin` + `PermissionRequiredMixin` nas CBVs, `@permission_required` nas FBVs.
+**Implementação:** `LoginRequiredMixin` + `PermissionRequiredMixin` nas CBVs.
 
 ---
 
 ## Gargalos de Performance Conhecidos
 
 ### N+1 Queries
-- **`LancamentoListView`:** `total_pendente` e `total_vencido` fazem loop Python sobre QuerySet (sem `select_related` nas propriedades)
-- **`VendaListView`:** KPIs recalculam aggregates a cada request de listagem
+- **`LancamentoListView`:** KPIs fazem loop Python sobre QuerySet
+- **`VendaListView`:** Aggregates recalculados a cada request
 
-**Correção:** `select_related` + `prefetch_related` + mover KPIs para cache de sessão ou context processor otimizado.
+**Correção:** `select_related` + `prefetch_related` + cache de sessão.
 
 ### Migrações acumuladas em `solar`
-- Há 8 migrações no app `solar`. Considerar squash quando o banco de produção estiver estável.
+- 10 migrações. Considerar squash quando banco estiver estável.

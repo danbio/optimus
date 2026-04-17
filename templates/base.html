@@ -29,9 +29,42 @@
   <a href="{% url 'clientes:lista' %}" {% if 'clientes' in request.resolver_match.app_name %}class="active"{% endif %}>
     <i class="bi bi-people"></i> Clientes
   </a>
-  <a href="{% url 'solar:lista' %}" {% if 'solar' in request.resolver_match.app_name %}class="active"{% endif %}>
-    <i class="bi bi-sun"></i> Solar
-  </a>
+  <details {% if 'solar' in request.resolver_match.app_name %}open{% endif %}>
+    <summary>
+      <i class="bi bi-sun"></i> Solar
+      <i class="bi bi-chevron-right chevron"></i>
+    </summary>
+    <div class="sidebar-sub">
+      <a href="{% url 'solar:lista' %}"
+         {% if 'solar' in request.resolver_match.app_name and request.resolver_match.url_name == 'lista' %}class="active"{% endif %}>
+        <i class="bi bi-file-text"></i> Propostas
+      </a>      
+      <details {% if 'modulo' in request.resolver_match.url_name or 'inversor' in request.resolver_match.url_name or 'estrutura' in request.resolver_match.url_name or 'material' in request.resolver_match.url_name %}open{% endif %}>
+        <summary>
+          <i class="bi bi-cpu"></i> Componentes
+          <i class="bi bi-chevron-right chevron"></i>
+        </summary>
+        <div class="sidebar-sub">
+          <a href="{% url 'solar:modulos' %}"
+             {% if 'solar' in request.resolver_match.app_name and 'modulo' in request.resolver_match.url_name %}class="active"{% endif %}>
+            <i class="bi bi-grid-3x3"></i> Módulos
+          </a>
+          <a href="{% url 'solar:inversores' %}"
+             {% if 'solar' in request.resolver_match.app_name and 'inversor' in request.resolver_match.url_name %}class="active"{% endif %}>
+            <i class="bi bi-lightning-charge"></i> Inversores
+          </a>
+          <a href="{% url 'solar:estruturas' %}"
+             {% if 'solar' in request.resolver_match.app_name and 'estrutura' in request.resolver_match.url_name %}class="active"{% endif %}>
+            <i class="bi bi-house-gear"></i> Estruturas
+          </a>
+          <a href="{% url 'solar:materiais' %}"
+             {% if 'solar' in request.resolver_match.app_name and 'material' in request.resolver_match.url_name %}class="active"{% endif %}>
+            <i class="bi bi-plug"></i> Materiais Elét.
+          </a>
+        </div>
+      </details>
+    </div>
+  </details>
   <details {% if 'servicos' in request.resolver_match.app_name %}open{% endif %}>
     <summary>
       <i class="bi bi-tools"></i> Serviços
@@ -43,7 +76,7 @@
         <i class="bi bi-file-text"></i> Propostas
       </a>
       <a href="{% url 'servicos:catalogo' %}"
-         {% if 'servicos' in request.resolver_match.app_name and request.resolver_match.url_name in 'catalogo catalogo_novo catalogo_editar catalogo_excluir' %}class="active"{% endif %}>
+         {% if 'servicos' in request.resolver_match.app_name and request.resolver_match.url_name == 'catalogo' or 'servicos' in request.resolver_match.app_name and request.resolver_match.url_name == 'catalogo_novo' or 'servicos' in request.resolver_match.app_name and request.resolver_match.url_name == 'catalogo_editar' or 'servicos' in request.resolver_match.app_name and request.resolver_match.url_name == 'catalogo_excluir' %}class="active"{% endif %}>
         <i class="bi bi-list-ul"></i> Catálogo
       </a>
     </div>
@@ -60,16 +93,16 @@
     </summary>
     <div class="sidebar-sub">
       <a href="{% url 'ordens_servico:lista' %}"
-         {% if 'ordens_servico' in request.resolver_match.app_name and request.resolver_match.url_name not in 'tecnicos tecnico_novo tecnico_editar tecnico_excluir' %}class="active"{% endif %}>
+         {% if 'ordens_servico' in request.resolver_match.app_name and request.resolver_match.url_name != 'tecnicos' and request.resolver_match.url_name != 'tecnico_novo' and request.resolver_match.url_name != 'tecnico_editar' and request.resolver_match.url_name != 'tecnico_excluir' %}class="active"{% endif %}>
         <i class="bi bi-list-ul"></i> Todas as OS
       </a>
       <a href="{% url 'ordens_servico:tecnicos' %}"
-         {% if 'ordens_servico' in request.resolver_match.app_name and request.resolver_match.url_name in 'tecnicos tecnico_novo tecnico_editar tecnico_excluir' %}class="active"{% endif %}>
+         {% if 'ordens_servico' in request.resolver_match.app_name and request.resolver_match.url_name == 'tecnicos' or 'ordens_servico' in request.resolver_match.app_name and request.resolver_match.url_name == 'tecnico_novo' or 'ordens_servico' in request.resolver_match.app_name and request.resolver_match.url_name == 'tecnico_editar' or 'ordens_servico' in request.resolver_match.app_name and request.resolver_match.url_name == 'tecnico_excluir' %}class="active"{% endif %}>
         <i class="bi bi-person-badge"></i> Técnicos
       </a>
     </div>
   </details>
-  <a href="#" {% if 'pos_venda' in request.resolver_match.app_name %}class="active"{% endif %}>
+  <a href="{% url 'pos_venda:lista' %}" {% if 'pos_venda' in request.resolver_match.app_name %}class="active"{% endif %}>
     <i class="bi bi-headset"></i> Pós-venda
   </a>
 

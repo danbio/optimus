@@ -253,7 +253,7 @@
           <form method="post" action="{% url 'ordens_servico:agendar' os_obj.pk %}" style="margin-bottom: 12px;">
             {% csrf_token %}
             <label style="font-size: 13px; font-weight: 600; margin-bottom: 4px; display: block;">Agendar</label>
-            <input type="datetime-local" name="data_agendamento" class="form-control" style="margin-bottom: 8px;" required>
+            <input type="datetime-local" name="data_agendamento" class="form-control" style="margin-bottom: 8px;" min="{{ agendamento_min }}" required>
             <button type="submit" class="btn-primary btn-sm w-100">
               <i class="bi bi-calendar-check"></i> Agendar OS
             </button>
@@ -273,7 +273,7 @@
           <form method="post" action="{% url 'ordens_servico:reagendar' os_obj.pk %}" style="margin-bottom: 12px;">
             {% csrf_token %}
             <label style="font-size: 13px; font-weight: 600; margin-bottom: 4px; display: block;">Reagendar</label>
-            <input type="datetime-local" name="data_agendamento" class="form-control" style="margin-bottom: 8px;" required>
+            <input type="datetime-local" name="data_agendamento" class="form-control" style="margin-bottom: 8px;" min="{{ agendamento_min }}" required>
             <button type="submit" class="btn-secondary btn-sm w-100">
               <i class="bi bi-calendar2-x"></i> Reagendar
             </button>
@@ -306,7 +306,7 @@
           <form method="post" action="{% url 'ordens_servico:reagendar' os_obj.pk %}">
             {% csrf_token %}
             <label style="font-size: 13px; font-weight: 600; margin-bottom: 4px; display: block;">Reagendar</label>
-            <input type="datetime-local" name="data_agendamento" class="form-control" style="margin-bottom: 8px;" required>
+            <input type="datetime-local" name="data_agendamento" class="form-control" style="margin-bottom: 8px;" min="{{ agendamento_min }}" required>
             <button type="submit" class="btn-primary btn-sm w-100">
               <i class="bi bi-calendar-check"></i> Reagendar OS
             </button>

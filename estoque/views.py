@@ -129,6 +129,7 @@ _MAPA_COLUNAS = {
     "preco_referencia": ["preco referencia", "preco referencia", "preco_referencia", "referencia", "controle de venda", "controle venda", "tipo preco"],
     # "Qtd. Múltipla" é o nome real na tabela Intelbras
     "qtd_multipla": ["qtd. multipla", "qtd multipla", "quantidade multipla", "qtd_multipla", "qtd.multipla", "multiplo", "multiplo venda"],
+    "quantidade_estoque": ["quantidade_estoque", "quantidade estoque", "estoque", "saldo", "saldo estoque", "qtd estoque", "qtde estoque"],
     "ncm": ["ncm", "ncm/sh", "cod ncm"],
     "ean": ["ean", "ean/gtin", "gtin", "codigo de barras", "barcode", "cod barras", "ean 13"],
     "observacoes": ["observacoes", "observacoes", "obs", "obs.", "observacao", "nota"],
@@ -285,6 +286,7 @@ def _processar_rows(rows):
                     "pscf": _dec(get("pscf")),
                     "preco_referencia": ref,
                     "qtd_multipla": _dec(get("qtd_multipla")) or Decimal("1"),
+                    "quantidade_estoque": _dec(get("quantidade_estoque")),
                     "ncm": str(get("ncm") or "").strip(),
                     "ean": ean,
                     "observacoes": str(get("observacoes") or "").strip(),
@@ -336,6 +338,7 @@ def importar_tabela(request):
         ("PSCF", "Preço de Venda"),
         ("Preco_referencia", "Controle de venda (PSD / PP / S/Controle)"),
         ("Qtd_multipla", "Quantidade mínima por pedido"),
+        ("Quantidade_estoque", "Saldo atual disponível para venda"),
         ("NCM", "Código NCM fiscal"),
         ("EAN", "Código de barras EAN/GTIN"),
         ("Observacoes", "Observações (opcional)"),

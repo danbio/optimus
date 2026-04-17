@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-lightning-charge"></i> {{ titulo }}</h1>
+  <a href="{% url 'solar:inversores' %}" class="btn-secondary">
+    <i class="bi bi-arrow-left"></i> Voltar
+  </a>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  <div class="card">
+    <div class="card-header"><i class="bi bi-tag"></i> Identificação</div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 2; min-width: 200px;">
+          <label for="id_fabricante">Fabricante <span class="obrigatorio">*</span></label>
+          {{ form.fabricante }}
+          {% if form.fabricante.errors %}<div class="form-error">{% for e in form.fabricante.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 3; min-width: 200px;">
+          <label for="id_modelo">Modelo <span class="obrigatorio">*</span></label>
+          {{ form.modelo }}
+          {% if form.modelo.errors %}<div class="form-error">{% for e in form.modelo.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><i class="bi bi-cpu"></i> Especificações Técnicas</div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 140px;">
+          <label for="id_potencia_kw">Potência (kW) <span class="obrigatorio">*</span></label>
+          {{ form.potencia_kw }}
+          {% if form.potencia_kw.errors %}<div class="form-error">{% for e in form.potencia_kw.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 140px;">
+          <label for="id_tipo">Tipo <span class="obrigatorio">*</span></label>
+          {{ form.tipo }}
+          {% if form.tipo.errors %}<div class="form-error">{% for e in form.tipo.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 140px;">
+          <label for="id_fase">Fase <span class="obrigatorio">*</span></label>
+          {{ form.fase }}
+          {% if form.fase.errors %}<div class="form-error">{% for e in form.fase.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 140px;">
+          <label for="id_tensao_max_entrada">Tensão máx. entrada (V) <span class="obrigatorio">*</span></label>
+          {{ form.tensao_max_entrada }}
+          {% if form.tensao_max_entrada.errors %}<div class="form-error">{% for e in form.tensao_max_entrada.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 140px;">
+          <label for="id_quantidade_mppt">Quantidade de MPPTs <span class="obrigatorio">*</span></label>
+          {{ form.quantidade_mppt }}
+          {% if form.quantidade_mppt.errors %}<div class="form-error">{% for e in form.quantidade_mppt.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><i class="bi bi-shield-check"></i> Garantia e Status</div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-end;">
+        <div class="form-group" style="flex: 1; min-width: 160px;">
+          <label for="id_garantia">Garantia (anos) <span class="obrigatorio">*</span></label>
+          {{ form.garantia }}
+          {% if form.garantia.errors %}<div class="form-error">{% for e in form.garantia.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 0 0 auto; padding-bottom: 18px;">
+          <label>{{ form.ativo }} Ativo</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2" style="margin-top: 8px;">
+    <button type="submit" class="btn-primary"><i class="bi bi-check-lg"></i> {{ acao }}</button>
+    <a href="{% url 'solar:inversores' %}" class="btn-secondary"><i class="bi bi-x"></i> Cancelar</a>
+  </div>
+</form>
+{% endblock %}

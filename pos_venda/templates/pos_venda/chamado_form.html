@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-headset"></i> {{ titulo }}</h1>
+  <a href="{% url 'pos_venda:lista' %}" class="btn btn-outline">
+    <i class="bi bi-arrow-left"></i> Voltar
+  </a>
+</div>
+
+<form method="post" style="max-width: 860px;">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="alerta alerta-erro">
+      {% for erro in form.non_field_errors %}{{ erro }}{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-header">Dados do Chamado</div>
+    <div class="card-body">
+
+      <div class="form-row">
+        <div class="form-group" style="flex: 2">
+          <label>Cliente *</label>
+          {{ form.cliente }}
+          {% if form.cliente.errors %}<span class="form-error">{{ form.cliente.errors.0 }}</span>{% endif %}
+        </div>
+        <div class="form-group">
+          <label>Tipo *</label>
+          {{ form.tipo }}
+          {% if form.tipo.errors %}<span class="form-error">{{ form.tipo.errors.0 }}</span>{% endif %}
+        </div>
+        <div class="form-group">
+          <label>Prioridade *</label>
+          {{ form.prioridade }}
+          {% if form.prioridade.errors %}<span class="form-error">{{ form.prioridade.errors.0 }}</span>{% endif %}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Assunto *</label>
+        {{ form.assunto }}
+        {% if form.assunto.errors %}<span class="form-error">{{ form.assunto.errors.0 }}</span>{% endif %}
+      </div>
+
+      <div class="form-group">
+        <label>Descrição</label>
+        {{ form.descricao }}
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Responsável</label>
+          {{ form.responsavel }}
+        </div>
+        <div class="form-group">
+          <label>Prazo de resolução</label>
+          {{ form.prazo }}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 1.5rem;">
+    <div class="card-header">Origem (opcional)</div>
+    <div class="card-body">
+      <p style="color: var(--texto-secundario); font-size: 0.9rem; margin-bottom: 1rem;">
+        Vincule o chamado à origem que o gerou. Deixe em branco se não houver vínculo.
+      </p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Ordem de Serviço</label>
+          {{ form.ordem_servico }}
+        </div>
+        <div class="form-group">
+          <label>Proposta Solar</label>
+          {{ form.proposta_solar }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Proposta de Serviço</label>
+          {{ form.proposta_servico }}
+        </div>
+        <div class="form-group">
+          <label>Venda Balcão</label>
+          {{ form.venda_balcao }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions" style="margin-top: 1.5rem;">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-check-lg"></i> Salvar
+    </button>
+    <a href="{% url 'pos_venda:lista' %}" class="btn btn-outline">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

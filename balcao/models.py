@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.db import models
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
 from core.models import BaseModel
@@ -62,14 +62,25 @@ class Venda(BaseModel):
         nome = self.cliente.nome if self.cliente else (self.cliente_nome_avulso or "Avulso")
         return f"{self.numero} — {nome}"
 
+    def _gerar_numero(self):
+        mes = timezone.now().strftime("%Y%m")
+        prefix = f"BAL-{mes}-"
+        ultimo = Venda.objects.filter(numero__startswith=prefix).order_by("numero").last()
+        seq = (int(ultimo.numero.split("-")[-1]) + 1) if ultimo else 1
+        return f"{prefix}{seq:04d}"
+
     def save(self, *args, **kwargs):
-        if not self.numero:
-            mes = timezone.now().strftime("%Y%m")
-            prefix = f"BAL-{mes}-"
-            ultimo = Venda.objects.filter(numero__startswith=prefix).order_by("numero").last()
-            seq = (int(ultimo.numero.split("-")[-1]) + 1) if ultimo else 1
-            self.numero = f"{prefix}{seq:04d}"
-        super().save(*args, **kwargs)
+        if self.numero:
+            return super().save(*args, **kwargs)
+
+        for _ in range(5):
+            self.numero = self._gerar_numero()
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                self.numero = ""
+        raise IntegrityError("Falha ao gerar número único para venda após múltiplas tentativas.")
 
     def recalcular_totais(self):
         self.subtotal = sum(item.subtotal for item in self.itens.all())

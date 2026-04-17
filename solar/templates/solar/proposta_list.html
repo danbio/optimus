@@ -36,7 +36,6 @@
         <th>Cliente</th>
         <th style="text-align: right;">Potência</th>
         <th style="text-align: right;">Módulos</th>
-        <th>Inversor</th>
         <th style="text-align: right;">Total (R$)</th>
         <th style="width: 100px;">Status</th>
         <th style="width: 90px;"></th>
@@ -54,7 +53,6 @@
         <td>{{ p.cliente.nome }}</td>
         <td style="text-align: right; font-weight: 600;">{{ p.potencia_kwp }} kWp</td>
         <td style="text-align: right;">{{ p.quantidade_modulos }}x {{ p.modulo.potencia_wp }}Wp</td>
-        <td style="font-size: 13px;">{{ p.inversor.fabricante }} {{ p.inversor.modelo }}</td>
         <td style="text-align: right; font-weight: 600;">
           R$ {{ p.valor_total|floatformat:2 }}
         </td>

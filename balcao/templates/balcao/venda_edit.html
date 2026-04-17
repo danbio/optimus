@@ -160,10 +160,18 @@
           <div class="form-group" id="campo-parcelas" style="{% if venda.forma_pagamento != 'cartao_credito' %}display:none;{% endif %}">
             <label style="font-size: 12px; font-weight: 600;">Nº de parcelas</label>
             <select name="num_parcelas" class="form-control">
-              {% for i in "123456789012" %}{% endfor %}
-              {% for n in "1,2,3,4,5,6,7,8,9,10,11,12"|split:"," %}
-                <option value="{{ n }}" {% if venda.num_parcelas == n|add:"0" %}selected{% endif %}>{{ n }}x</option>
-              {% endfor %}
+              <option value="1" {% if venda.num_parcelas == 1 %}selected{% endif %}>1x</option>
+              <option value="2" {% if venda.num_parcelas == 2 %}selected{% endif %}>2x</option>
+              <option value="3" {% if venda.num_parcelas == 3 %}selected{% endif %}>3x</option>
+              <option value="4" {% if venda.num_parcelas == 4 %}selected{% endif %}>4x</option>
+              <option value="5" {% if venda.num_parcelas == 5 %}selected{% endif %}>5x</option>
+              <option value="6" {% if venda.num_parcelas == 6 %}selected{% endif %}>6x</option>
+              <option value="7" {% if venda.num_parcelas == 7 %}selected{% endif %}>7x</option>
+              <option value="8" {% if venda.num_parcelas == 8 %}selected{% endif %}>8x</option>
+              <option value="9" {% if venda.num_parcelas == 9 %}selected{% endif %}>9x</option>
+              <option value="10" {% if venda.num_parcelas == 10 %}selected{% endif %}>10x</option>
+              <option value="11" {% if venda.num_parcelas == 11 %}selected{% endif %}>11x</option>
+              <option value="12" {% if venda.num_parcelas == 12 %}selected{% endif %}>12x</option>
             </select>
           </div>
           <button type="submit" class="btn-secondary btn-sm w-100" style="margin-bottom: 8px;">

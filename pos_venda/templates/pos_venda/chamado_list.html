@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Pós-venda{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-headset"></i> Pós-venda — Chamados</h1>
+  <a href="{% url 'pos_venda:novo' %}" class="btn btn-primary">
+    <i class="bi bi-plus-lg"></i> Novo Chamado
+  </a>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-row">
+  <div class="kpi-card">
+    <div class="kpi-valor">{{ kpi_abertos }}</div>
+    <div class="kpi-label">Abertos</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-valor">{{ kpi_em_atendimento }}</div>
+    <div class="kpi-label">Em Atendimento</div>
+  </div>
+  <div class="kpi-card kpi-card--alerta">
+    <div class="kpi-valor">{{ kpi_vencidos }}</div>
+    <div class="kpi-label">Vencidos</div>
+  </div>
+  <div class="kpi-card kpi-card--sucesso">
+    <div class="kpi-valor">{{ kpi_resolvidos_mes }}</div>
+    <div class="kpi-label">Resolvidos este mês</div>
+  </div>
+</div>
+
+<!-- Filtros -->
+<form method="get" class="filtro-form">
+  <input type="text" name="q" value="{{ filtros.q }}" placeholder="Buscar por número, assunto ou cliente…" class="form-control">
+  <select name="status" class="form-control">
+    <option value="">Todos os status</option>
+    {% for val, label in status_choices %}
+      <option value="{{ val }}" {% if filtros.status == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="tipo" class="form-control">
+    <option value="">Todos os tipos</option>
+    {% for val, label in tipo_choices %}
+      <option value="{{ val }}" {% if filtros.tipo == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="prioridade" class="form-control">
+    <option value="">Todas as prioridades</option>
+    {% for val, label in prioridade_choices %}
+      <option value="{{ val }}" {% if filtros.prioridade == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i> Filtrar</button>
+  {% if filtros.q or filtros.status or filtros.tipo or filtros.prioridade %}
+    <a href="{% url 'pos_venda:lista' %}" class="btn btn-outline">Limpar</a>
+  {% endif %}
+</form>
+
+{% if chamados %}
+<div class="table-container">
+  <table class="tabela">
+    <thead>
+      <tr>
+        <th>Número</th>
+        <th>Cliente</th>
+        <th>Assunto</th>
+        <th>Tipo</th>
+        <th>Prioridade</th>
+        <th>Status</th>
+        <th>Prazo</th>
+        <th>Responsável</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in chamados %}
+      <tr>
+        <td><a href="{% url 'pos_venda:detalhe' c.pk %}">{{ c.numero }}</a></td>
+        <td>{{ c.cliente.nome }}</td>
+        <td>{{ c.assunto|truncatechars:50 }}</td>
+        <td>{{ c.get_tipo_display }}</td>
+        <td>
+          <span class="badge badge--prioridade-{{ c.prioridade }}">{{ c.get_prioridade_display }}</span>
+        </td>
+        <td>
+          <span class="badge badge--status-{{ c.status }}">{{ c.get_status_display }}</span>
+        </td>
+        <td>
+          {% if c.prazo %}
+            {% if c.esta_vencido %}
+              <span style="color: var(--erro)"><i class="bi bi-exclamation-triangle"></i> {{ c.prazo|date:"d/m/Y" }}</span>
+            {% else %}
+              {{ c.prazo|date:"d/m/Y" }}
+            {% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ c.responsavel.get_full_name|default:c.responsavel.username|default:"—" }}</td>
+        <td>
+          <a href="{% url 'pos_venda:detalhe' c.pk %}" class="btn btn-sm btn-secondary">
+            <i class="bi bi-eye"></i>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if is_paginated %}
+<div class="paginacao">
+  {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}&{{ filtros.urlencode }}">&laquo; Anterior</a>
+  {% endif %}
+  <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}&{{ filtros.urlencode }}">Próxima &raquo;</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+  <i class="bi bi-headset"></i>
+  <p>Nenhum chamado encontrado.</p>
+  <a href="{% url 'pos_venda:novo' %}" class="btn btn-primary">Abrir primeiro chamado</a>
+</div>
+{% endif %}
+{% endblock %}

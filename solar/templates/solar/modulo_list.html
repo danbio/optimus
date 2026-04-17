@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Módulos Fotovoltaicos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-grid-3x3-gap"></i> Módulos Fotovoltaicos</h1>
+  <a href="{% url 'solar:modulo_novo' %}" class="btn-primary">
+    <i class="bi bi-plus-lg"></i> Novo Módulo
+  </a>
+</div>
+
+<form method="get" class="card" style="padding: 16px 20px; margin-bottom: 20px;">
+  <div class="d-flex gap-2 align-center" style="flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 220px; position: relative;">
+      <i class="bi bi-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--texto-corpo);"></i>
+      <input type="text" name="q" value="{{ q }}" placeholder="Buscar por fabricante ou modelo..."
+             class="form-control" style="padding-left: 36px;" autocomplete="off">
+    </div>
+    <select name="ativo" class="form-control" style="width: auto; flex-shrink: 0;">
+      <option value="1" {% if ativo_filtro == "1" %}selected{% endif %}>Ativos</option>
+      <option value="0" {% if ativo_filtro == "0" %}selected{% endif %}>Inativos</option>
+    </select>
+    <button type="submit" class="btn-primary btn-sm"><i class="bi bi-search"></i> Filtrar</button>
+    {% if q %}
+      <a href="{% url 'solar:modulos' %}" class="btn-secondary btn-sm">Limpar</a>
+    {% endif %}
+  </div>
+</form>
+
+<div class="card" style="overflow: hidden; padding: 0;">
+  {% if modulos %}
+  <table class="tabela" style="margin: 0;">
+    <thead>
+      <tr>
+        <th>Fabricante / Modelo</th>
+        <th style="text-align: center;">Potência (Wp)</th>
+        <th style="text-align: center;">Eficiência (%)</th>
+        <th style="text-align: center;">Área (m²)</th>
+        <th style="text-align: center;">Garantia (anos)</th>
+        <th style="text-align: right;">Preço de Venda</th>
+        <th style="width: 60px; text-align: center;">Ativo</th>
+        <th style="width: 130px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m, preco in modulos_precos %}
+      <tr>
+        <td>
+          <span style="font-weight: 600; color: var(--texto-titulo);">{{ m.fabricante }}</span>
+          <span style="color: var(--texto-corpo);">{{ m.modelo }}</span>
+        </td>
+        <td style="text-align: center;">{{ m.potencia_wp }}</td>
+        <td style="text-align: center;">{{ m.eficiencia }}</td>
+        <td style="text-align: center;">{{ m.area_m2 }}</td>
+        <td style="text-align: center; font-size: 12px; color: var(--texto-corpo);">
+          {{ m.garantia_produto }}p / {{ m.garantia_desempenho }}d
+        </td>
+        <td style="text-align: right; white-space: nowrap;">
+          {% if preco %}
+            <strong>R$ {{ preco.preco_venda }}</strong>
+          {% else %}
+            <a href="{% url 'solar:modulo_precos' m.pk %}" class="badge" style="background: var(--erro); color: #fff; text-decoration: none;">Sem preço</a>
+          {% endif %}
+        </td>
+        <td style="text-align: center;">
+          {% if m.ativo %}
+            <i class="bi bi-check-circle-fill" style="color: var(--verde);"></i>
+          {% else %}
+            <i class="bi bi-x-circle" style="color: var(--erro);"></i>
+          {% endif %}
+        </td>
+        <td style="text-align: right; white-space: nowrap;">
+          <a href="{% url 'solar:modulo_precos' m.pk %}" class="btn-secondary btn-sm" title="Gerenciar Preços">
+            <i class="bi bi-currency-dollar"></i>
+          </a>
+          <a href="{% url 'solar:modulo_editar' m.pk %}" class="btn-secondary btn-sm" title="Editar" style="margin-left: 4px;">
+            <i class="bi bi-pencil"></i>
+          </a>
+          <a href="{% url 'solar:modulo_excluir' m.pk %}" class="btn-secondary btn-sm" title="Excluir" style="margin-left: 4px;">
+            <i class="bi bi-trash"></i>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if is_paginated %}
+  <div style="padding: 12px 20px; border-top: 1px solid var(--borda-fraca);">
+    <div class="paginacao">
+      {% if page_obj.has_previous %}
+        <a href="?q={{ q }}&ativo={{ ativo_filtro }}&page={{ page_obj.previous_page_number }}"><i class="bi bi-chevron-left"></i></a>
+      {% endif %}
+      {% for num in paginator.page_range %}
+        {% if page_obj.number == num %}<span class="atual">{{ num }}</span>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+          <a href="?q={{ q }}&ativo={{ ativo_filtro }}&page={{ num }}">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a href="?q={{ q }}&ativo={{ ativo_filtro }}&page={{ page_obj.next_page_number }}"><i class="bi bi-chevron-right"></i></a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div style="padding: 60px 20px; text-align: center; color: var(--texto-corpo);">
+    <i class="bi bi-grid-3x3-gap" style="font-size: 40px; opacity: 0.3; display: block; margin-bottom: 12px;"></i>
+    {% if q %}
+      <p style="margin: 0; font-size: 15px;">Nenhum módulo encontrado para "{{ q }}".</p>
+      <a href="{% url 'solar:modulos' %}" style="font-size: 14px; margin-top: 8px; display: inline-block;">Limpar filtro</a>
+    {% else %}
+      <p style="margin: 0; font-size: 15px;">Nenhum módulo cadastrado ainda.</p>
+      <a href="{% url 'solar:modulo_novo' %}" class="btn-primary" style="margin-top: 16px; display: inline-flex;">
+        <i class="bi bi-plus-lg"></i> Cadastrar primeiro módulo
+      </a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

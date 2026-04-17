@@ -48,6 +48,9 @@ class Command(BaseCommand):
                         "pscf": Decimal(str(row["pscf"] or 0)).quantize(Decimal("0.01")),
                         "preco_referencia": str(row["preco_referencia"] or "").strip(),
                         "qtd_multipla": Decimal(str(row["qtd_multipla"] or 1)).quantize(Decimal("0.01")),
+                        "quantidade_estoque": Decimal(str(row["quantidade_estoque"] or 0)).quantize(Decimal("0.01"))
+                        if "quantidade_estoque" in row.keys()
+                        else Decimal("0.00"),
                         "ncm": str(row["ncm"] or "").strip(),
                         "ean": ean,
                         "observacoes": str(row["observacoes"] or "").strip(),

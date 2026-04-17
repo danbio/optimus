@@ -4,8 +4,8 @@ Uso: python manage.py seed_solar
 """
 
 from django.core.management.base import BaseCommand
-from solar.models import EstruturaFixacao, Inversor, ModuloFotovoltaico
 
+from solar.models import EstruturaFixacao, Inversor, ModuloFotovoltaico
 
 MODULOS = [
     # Canadian Solar

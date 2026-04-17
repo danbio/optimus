@@ -1,6 +1,8 @@
 from datetime import date, timedelta
+from decimal import Decimal
 
-from django.db import models
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, models
 
 from clientes.models import Cliente
 from core.models import BaseModel
@@ -106,6 +108,228 @@ class EstruturaFixacao(BaseModel):
         return f"{self.fabricante} {self.modelo} ({self.get_tipo_display()})"
 
 
+class MateriaisEletricos(BaseModel):
+    CATEGORIA_CABO = "cabo"
+    CATEGORIA_DISJUNTOR = "disjuntor"
+    CATEGORIA_ELETRODUTO = "eletroduto"
+    CATEGORIA_DPS = "dps"
+    CATEGORIA_OUTROS = "outros"
+    CATEGORIA_CHOICES = [
+        (CATEGORIA_CABO, "Cabo"),
+        (CATEGORIA_DISJUNTOR, "Disjuntor"),
+        (CATEGORIA_ELETRODUTO, "Eletroduto"),
+        (CATEGORIA_DPS, "DPS / Protetor de Surto"),
+        (CATEGORIA_OUTROS, "Outros"),
+    ]
+
+    UNIDADE_METRO = "m"
+    UNIDADE_PECA = "pc"
+    UNIDADE_CHOICES = [
+        (UNIDADE_METRO, "Metro (m)"),
+        (UNIDADE_PECA, "Peça (pc)"),
+    ]
+
+    fabricante = models.CharField(max_length=100, verbose_name="fabricante")
+    modelo = models.CharField(max_length=100, verbose_name="modelo / referência")
+    categoria = models.CharField(
+        max_length=20,
+        choices=CATEGORIA_CHOICES,
+        default=CATEGORIA_OUTROS,
+        verbose_name="categoria",
+    )
+    unidade = models.CharField(
+        max_length=5,
+        choices=UNIDADE_CHOICES,
+        default=UNIDADE_PECA,
+        verbose_name="unidade de medida",
+    )
+    descricao = models.TextField(blank=True, verbose_name="descrição / especificação")
+    ativo = models.BooleanField(default=True, verbose_name="ativo")
+
+    class Meta:
+        verbose_name = "material elétrico"
+        verbose_name_plural = "materiais elétricos"
+        ordering = ["categoria", "fabricante", "modelo"]
+
+    def __str__(self):
+        return f"{self.get_categoria_display()} — {self.fabricante} {self.modelo}"
+
+
+class PrecoEquipamentoSolar(BaseModel):
+    """Tabela de preços com vigência para os equipamentos solares.
+
+    Exatamente um dos quatro FKs de equipamento/material deve estar preenchido.
+    Ao cadastrar um novo preço, o anterior (vigente_ate=null) é fechado automaticamente
+    pelo Admin (PrecoEquipamentoSolarAdmin.save_model).
+    """
+
+    modulo = models.ForeignKey(
+        ModuloFotovoltaico,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        verbose_name="módulo",
+    )
+    inversor = models.ForeignKey(
+        Inversor,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        verbose_name="inversor",
+    )
+    estrutura = models.ForeignKey(
+        EstruturaFixacao,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        verbose_name="estrutura",
+    )
+    material = models.ForeignKey(
+        MateriaisEletricos,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        verbose_name="material elétrico",
+    )
+
+    preco_custo = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="preço de custo (R$)")
+    preco_venda = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="preço de venda (R$)")
+    vigente_desde = models.DateField(verbose_name="vigente desde")
+    vigente_ate = models.DateField(null=True, blank=True, verbose_name="vigente até")
+
+    criado_por = models.ForeignKey(
+        "auth.User",
+        on_delete=models.PROTECT,
+        editable=False,
+        verbose_name="criado por",
+    )
+
+    class Meta:
+        verbose_name = "preço de equipamento solar"
+        verbose_name_plural = "preços de equipamentos solares"
+        ordering = ["-vigente_desde"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(modulo__isnull=False, inversor__isnull=True, estrutura__isnull=True, material__isnull=True)
+                    | models.Q(modulo__isnull=True, inversor__isnull=False, estrutura__isnull=True, material__isnull=True)
+                    | models.Q(modulo__isnull=True, inversor__isnull=True, estrutura__isnull=False, material__isnull=True)
+                    | models.Q(modulo__isnull=True, inversor__isnull=True, estrutura__isnull=True, material__isnull=False)
+                ),
+                name="preco_solar_apenas_um_tipo",
+            )
+        ]
+
+    def __str__(self):
+        equip = self.modulo or self.inversor or self.estrutura or self.material
+        return f"{equip} — R$ {self.preco_venda} (desde {self.vigente_desde})"
+
+    def clean(self):
+        preenchidos = sum(
+            [
+                bool(self.modulo_id),
+                bool(self.inversor_id),
+                bool(self.estrutura_id),
+                bool(self.material_id),
+            ]
+        )
+        if preenchidos != 1:
+            raise ValidationError("Informe exatamente um equipamento ou material.")
+
+    @classmethod
+    def get_preco_vigente(cls, equipamento, data):
+        """Retorna o registro de preço vigente para um equipamento/material em uma data."""
+        if isinstance(equipamento, ModuloFotovoltaico):
+            qs = cls.objects.filter(modulo=equipamento)
+        elif isinstance(equipamento, Inversor):
+            qs = cls.objects.filter(inversor=equipamento)
+        elif isinstance(equipamento, EstruturaFixacao):
+            qs = cls.objects.filter(estrutura=equipamento)
+        elif isinstance(equipamento, MateriaisEletricos):
+            qs = cls.objects.filter(material=equipamento)
+        else:
+            return None
+        return (
+            qs.filter(vigente_desde__lte=data).filter(models.Q(vigente_ate__isnull=True) | models.Q(vigente_ate__gte=data)).order_by("-vigente_desde").first()
+        )
+
+
+class ItemPropostaSolar(models.Model):
+    """Item de uma proposta solar com snapshot imutável do preço na data de criação."""
+
+    proposta = models.ForeignKey(
+        "PropostaSolar",
+        on_delete=models.CASCADE,
+        related_name="itens",
+        verbose_name="proposta",
+    )
+    modulo = models.ForeignKey(
+        ModuloFotovoltaico,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        verbose_name="módulo",
+    )
+    inversor = models.ForeignKey(
+        Inversor,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        verbose_name="inversor",
+    )
+    estrutura = models.ForeignKey(
+        EstruturaFixacao,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        verbose_name="estrutura",
+    )
+    material = models.ForeignKey(
+        MateriaisEletricos,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        verbose_name="material elétrico",
+    )
+    quantidade = models.IntegerField(default=1, verbose_name="quantidade")
+
+    # Snapshot imutável: registra exatamente o preço vigente no momento da criação da proposta
+    preco_venda_snapshot = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="preço de venda (snapshot)",
+    )
+    preco_custo_snapshot = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="preço de custo (snapshot)",
+    )
+    data_referencia_preco = models.DateField(verbose_name="data de referência do preço")
+
+    class Meta:
+        verbose_name = "item da proposta solar"
+        verbose_name_plural = "itens da proposta solar"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(modulo__isnull=False, inversor__isnull=True, estrutura__isnull=True, material__isnull=True)
+                    | models.Q(modulo__isnull=True, inversor__isnull=False, estrutura__isnull=True, material__isnull=True)
+                    | models.Q(modulo__isnull=True, inversor__isnull=True, estrutura__isnull=False, material__isnull=True)
+                    | models.Q(modulo__isnull=True, inversor__isnull=True, estrutura__isnull=True, material__isnull=False)
+                ),
+                name="item_proposta_solar_apenas_um_tipo",
+            )
+        ]
+
+    def __str__(self):
+        equip = self.modulo or self.inversor or self.estrutura or self.material
+        return f"{equip} × {self.quantidade}"
+
+    @property
+    def subtotal(self):
+        return self.preco_venda_snapshot * self.quantidade
+
+
 def _validade_padrao():
     return date.today() + timedelta(days=30)
 
@@ -133,15 +357,12 @@ class PropostaSolar(BaseModel):
     hsp = models.DecimalField(max_digits=4, decimal_places=2, default=5.50, verbose_name="HSP — horas de sol pleno (h/dia)")
     fator_eficiencia = models.DecimalField(max_digits=4, decimal_places=2, default=0.75, verbose_name="fator de eficiência do sistema")
     potencia_kwp = models.DecimalField(max_digits=7, decimal_places=3, verbose_name="potência do sistema (kWp)")
-    quantidade_modulos = models.IntegerField(verbose_name="quantidade de módulos")
+    quantidade_modulos = models.IntegerField(verbose_name="quantidade de módulos", default=0)
 
-    # Equipamentos
-    modulo = models.ForeignKey(ModuloFotovoltaico, on_delete=models.PROTECT, verbose_name="módulo fotovoltaico")
-    inversor = models.ForeignKey(Inversor, on_delete=models.PROTECT, verbose_name="inversor")
-    estrutura = models.ForeignKey(EstruturaFixacao, on_delete=models.PROTECT, verbose_name="estrutura de fixação")
+    # Equipamento Base de Dimensionamento (Referência)
+    modulo = models.ForeignKey(ModuloFotovoltaico, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="módulo fotovoltaico")
 
     # Financeiro
-    valor_equipamentos = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="valor dos equipamentos (R$)")
     valor_instalacao = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="valor da instalação (R$)")
 
     # Proposta
@@ -157,23 +378,50 @@ class PropostaSolar(BaseModel):
         return f"{self.numero} — {self.cliente.nome}"
 
     @property
+    def valor_equipamentos(self):
+        """Soma de preco_venda_snapshot × quantidade de todos os itens da proposta."""
+        from django.db.models import DecimalField as Dec
+        from django.db.models import F, Sum
+
+        total = self.itens.aggregate(
+            total=Sum(
+                F("preco_venda_snapshot") * F("quantidade"),
+                output_field=Dec(max_digits=12, decimal_places=2),
+            )
+        )["total"]
+        return total or Decimal("0.00")
+
+    @property
     def valor_total(self):
         return (self.valor_equipamentos or 0) + (self.valor_instalacao or 0)
 
     @property
     def potencia_real_kwp(self):
+        if not self.modulo:
+            return 0
         return round(self.quantidade_modulos * self.modulo.potencia_wp / 1000, 3)
 
     @property
     def area_total_m2(self):
+        if not self.modulo:
+            return 0
         return round(self.quantidade_modulos * self.modulo.area_m2, 2)
 
-    def save(self, *args, **kwargs):
-        if not self.numero:
-            from datetime import date as _date
+    def _gerar_numero(self):
+        mes = date.today().strftime("%Y%m")
+        ultimo = PropostaSolar.objects.filter(numero__startswith=f"SOL-{mes}").order_by("-numero").first()
+        seq = (int(ultimo.numero.split("-")[-1]) + 1) if ultimo else 1
+        return f"SOL-{mes}-{seq:04d}"
 
-            mes = _date.today().strftime("%Y%m")
-            ultimo = PropostaSolar.objects.filter(numero__startswith=f"SOL-{mes}").order_by("-numero").first()
-            seq = (int(ultimo.numero.split("-")[-1]) + 1) if ultimo else 1
-            self.numero = f"SOL-{mes}-{seq:04d}"
-        super().save(*args, **kwargs)
+    def save(self, *args, **kwargs):
+        if self.numero:
+            return super().save(*args, **kwargs)
+
+        for _ in range(5):
+            self.numero = self._gerar_numero()
+            try:
+                super().save(*args, **kwargs)
+                return
+            except IntegrityError:
+                self.numero = ""
+        raise IntegrityError("Falha ao gerar número único para proposta solar após múltiplas tentativas.")

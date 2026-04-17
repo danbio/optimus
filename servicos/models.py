@@ -1,4 +1,5 @@
-from django.db import models
+from django.db import IntegrityError, models, transaction
+from django.utils import timezone
 
 from core.models import BaseModel
 
@@ -63,19 +64,25 @@ class PropostaServico(BaseModel):
     def __str__(self):
         return f"{self.numero} — {self.cliente}"
 
-    def save(self, *args, **kwargs):
-        if not self.numero:
-            from django.utils import timezone
+    def _gerar_numero(self):
+        now = timezone.now()
+        prefix = f"SRV-{now.strftime('%Y%m')}-"
+        last = PropostaServico.objects.filter(numero__startswith=prefix).order_by("numero").last()
+        seq = int(last.numero.split("-")[-1]) + 1 if last else 1
+        return f"{prefix}{seq:04d}"
 
-            now = timezone.now()
-            prefix = f"SRV-{now.strftime('%Y%m')}-"
-            last = PropostaServico.objects.filter(numero__startswith=prefix).order_by("numero").last()
-            if last:
-                seq = int(last.numero.split("-")[-1]) + 1
-            else:
-                seq = 1
-            self.numero = f"{prefix}{seq:04d}"
-        super().save(*args, **kwargs)
+    def save(self, *args, **kwargs):
+        if self.numero:
+            return super().save(*args, **kwargs)
+
+        for _ in range(5):
+            self.numero = self._gerar_numero()
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                self.numero = ""
+        raise IntegrityError("Falha ao gerar número único para proposta de serviço após múltiplas tentativas.")
 
     @property
     def total_servicos(self):
@@ -132,9 +139,9 @@ class ItemProduto(models.Model):
         verbose_name = "Item de Produto"
         verbose_name_plural = "Itens de Produto"
 
+    def __str__(self):
+        return f"{self.produto.descricao} x{self.quantidade}"
+
     @property
     def subtotal(self):
         return self.quantidade * self.valor_unitario
-
-    def __str__(self):
-        return f"{self.produto.descricao} x{self.quantidade}"

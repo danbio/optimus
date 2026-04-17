@@ -18,8 +18,8 @@ if not _SECRET_KEY:
         raise RuntimeError("SECRET_KEY não configurada. Defina no arquivo .env antes de iniciar em produção.")
 SECRET_KEY = _SECRET_KEY
 
-DEBUG = os.environ.get("DEBUG", "True") == "True"
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,*").split(",")
+DEBUG = os.environ.get("DEBUG", "False").lower() in ("1", "true", "yes", "on")
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if host.strip()]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "ordens_servico",
     "financeiro",
     "balcao",
+    "pos_venda",
 ]
 
 MIDDLEWARE = [

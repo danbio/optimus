@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Chamado {{ chamado.numero }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-headset"></i> {{ chamado.numero }}</h1>
+    <p style="color: var(--texto-secundario); margin: 0;">{{ chamado.assunto }}</p>
+  </div>
+  <div style="display: flex; gap: 0.5rem;">
+    <a href="{% url 'pos_venda:editar' chamado.pk %}" class="btn btn-secondary">
+      <i class="bi bi-pencil"></i> Editar
+    </a>
+    <a href="{% url 'pos_venda:lista' %}" class="btn btn-outline">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem; align-items: start;">
+
+  <!-- Coluna principal -->
+  <div>
+
+    <!-- Descrição -->
+    {% if chamado.descricao %}
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card-header">Descrição</div>
+      <div class="card-body">
+        <p style="white-space: pre-line; margin: 0;">{{ chamado.descricao }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Interações -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card-header">
+        <span>Histórico de Interações</span>
+        <span class="badge badge--status-aberto">{{ interacoes.count }}</span>
+      </div>
+      <div class="card-body" style="padding: 0;">
+        {% if interacoes %}
+          {% for interacao in interacoes %}
+          <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--borda);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="bi bi-person-circle" style="color: var(--verde);"></i>
+                <strong>{{ interacao.autor.get_full_name|default:interacao.autor.username }}</strong>
+                <span class="badge" style="background: var(--fundo-alt); color: var(--texto-secundario); font-size: 0.75rem;">
+                  {{ interacao.get_tipo_display }}
+                </span>
+              </div>
+              <span style="color: var(--texto-secundario); font-size: 0.85rem;">
+                {{ interacao.criado_em|date:"d/m/Y H:i" }}
+              </span>
+            </div>
+            <p style="margin: 0; white-space: pre-line;">{{ interacao.texto }}</p>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div style="padding: 1.5rem; text-align: center; color: var(--texto-secundario);">
+            Nenhuma interação registrada ainda.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Nova interação -->
+    <div class="card">
+      <div class="card-header">Registrar Interação</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'pos_venda:adicionar_interacao' chamado.pk %}">
+          {% csrf_token %}
+          <div class="form-row">
+            <div class="form-group" style="flex: 0 0 180px;">
+              <label>Tipo</label>
+              {{ form_interacao.tipo }}
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label>Descrição *</label>
+              {{ form_interacao.texto }}
+              {% if form_interacao.texto.errors %}
+                <span class="form-error">{{ form_interacao.texto.errors.0 }}</span>
+              {% endif %}
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-send"></i> Registrar
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Sidebar direita -->
+  <div>
+
+    <!-- Status e ações rápidas -->
+    <div class="card" style="margin-bottom: 1rem;">
+      <div class="card-header">Status</div>
+      <div class="card-body">
+        <div style="margin-bottom: 1rem; text-align: center;">
+          <span class="badge badge--status-{{ chamado.status }}" style="font-size: 1rem; padding: 0.4rem 1rem;">
+            {{ chamado.get_status_display }}
+          </span>
+        </div>
+        <form method="post" action="{% url 'pos_venda:mudar_status' chamado.pk %}">
+          {% csrf_token %}
+          <div class="form-group" style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.85rem; color: var(--texto-secundario);">Mover para:</label>
+            <select name="status" class="form-control" style="margin-bottom: 0.5rem;">
+              {% for val, label in status_choices %}
+                {% if val != chamado.status %}
+                  <option value="{{ val }}">{{ label }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-secondary" style="width: 100%;">
+              <i class="bi bi-arrow-repeat"></i> Alterar Status
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Detalhes -->
+    <div class="card" style="margin-bottom: 1rem;">
+      <div class="card-header">Detalhes</div>
+      <div class="card-body">
+        <dl style="margin: 0; display: grid; gap: 0.6rem;">
+          <div>
+            <dt style="font-size: 0.8rem; color: var(--texto-secundario);">Cliente</dt>
+            <dd style="margin: 0;">
+              <a href="{% url 'clientes:detalhe' chamado.cliente.pk %}">{{ chamado.cliente.nome }}</a>
+              &nbsp;
+              <a href="{% url 'pos_venda:historico_cliente' chamado.cliente.pk %}" title="Ver histórico completo" style="color: var(--texto-secundario);">
+                <i class="bi bi-clock-history"></i>
+              </a>
+            </dd>
+          </div>
+          <div>
+            <dt style="font-size: 0.8rem; color: var(--texto-secundario);">Tipo</dt>
+            <dd style="margin: 0;">{{ chamado.get_tipo_display }}</dd>
+          </div>
+          <div>
+            <dt style="font-size: 0.8rem; color: var(--texto-secundario);">Prioridade</dt>
+            <dd style="margin: 0;">
+              <span class="badge badge--prioridade-{{ chamado.prioridade }}">{{ chamado.get_prioridade_display }}</span>
+            </dd>
+          </div>
+          <div>
+            <dt style="font-size: 0.8rem; color: var(--texto-secundario);">Responsável</dt>
+            <dd style="margin: 0;">{{ chamado.responsavel.get_full_name|default:chamado.responsavel.username|default:"—" }}</dd>
+          </div>
+          <div>
+            <dt style="font-size: 0.8rem; color: var(--texto-secundario);">Prazo</dt>
+            <dd style="margin: 0;">
+              {% if chamado.prazo %}
+                {% if chamado.esta_vencido %}
+                  <span style="color: var(--erro);"><i class="bi bi-exclamation-triangle"></i> {{ chamado.prazo|date:"d/m/Y" }}</span>
+                {% else %}
+                  {{ chamado.prazo|date:"d/m/Y" }}
+                {% endif %}
+              {% else %}—{% endif %}
+            </dd>
+          </div>
+          <div>
+            <dt style="font-size: 0.8rem; color: var(--texto-secundario);">Aberto em</dt>
+            <dd style="margin: 0;">{{ chamado.criado_em|date:"d/m/Y H:i" }}</dd>
+          </div>
+          {% if chamado.data_resolucao %}
+          <div>
+            <dt style="font-size: 0.8rem; color: var(--texto-secundario);">Resolvido em</dt>
+            <dd style="margin: 0;">{{ chamado.data_resolucao|date:"d/m/Y H:i" }}</dd>
+          </div>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+
+    <!-- Origem -->
+    {% with origem=chamado.origem_display %}
+    {% if origem %}
+    <div class="card">
+      <div class="card-header">Origem</div>
+      <div class="card-body">
+        <span style="font-size: 0.85rem; color: var(--texto-secundario);">{{ origem.0 }}</span><br>
+        <strong>{{ origem.1 }}</strong>
+      </div>
+    </div>
+    {% endif %}
+    {% endwith %}
+
+  </div>
+</div>
+{% endblock %}

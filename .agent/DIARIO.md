@@ -9,22 +9,27 @@
 
 > **Para agentes de IA:** Leia este bloco primeiro. Ele resume o estado real do projeto sem necessidade de ler todo o diário.
 
-| App | Status | Última ação relevante |
-|-----|--------|----------------------|
-| `core` | ✅ Completo | `BaseModel` com `criado_em`/`atualizado_em` |
-| `clientes` | ✅ Completo | CRUD PF/PJ, validações, busca CEP/CNPJ |
-| `estoque` | ✅ Completo | Importação `.xlsb`, catálogo Intelbras |
-| `solar` | ✅ Completo | Dimensionamento HTMX, proposta, catálogo equipamentos com preços, quantidades editáveis |
-| `servicos` | ✅ Completo | Proposta por tipo de serviço |
-| `ordens_servico` | ✅ Completo | OS com checklist, fotos, técnicos, faturamento |
-| `financeiro` | ✅ Completo | Lançamentos, parcelas, baixas, dashboard |
-| `balcao` | ✅ Completo | PDV carrinho HTMX, baixa estoque, lançamento automático |
-| `pos_venda` | 🔲 Pendente | App criado, modelos não implementados |
+| App              | Status     | Última ação relevante                                                                   |
+| ---------------- | ---------- | --------------------------------------------------------------------------------------- |
+| `core`           | ✅ Completo | `BaseModel` com `criado_em`/`atualizado_em`                                             |
+| `clientes`       | ✅ Completo | CRUD PF/PJ, validações, busca CEP/CNPJ                                                  |
+| `estoque`        | ✅ Completo | Importação `.xlsb`, catálogo Intelbras                                                  |
+| `solar`          | ✅ Completo | Dimensionamento HTMX, proposta, catálogo equipamentos com preços, quantidades editáveis |
+| `servicos`       | ✅ Completo | Proposta por tipo de serviço                                                            |
+| `ordens_servico` | ✅ Completo | OS com checklist, fotos, técnicos, faturamento                                          |
+| `financeiro`     | ✅ Completo | Lançamentos, parcelas, baixas, dashboard                                                |
+| `balcao`         | ✅ Completo | PDV carrinho HTMX, baixa estoque, lançamento automático                                 |
+| `pos_venda`      | 🔲 Pendente | App criado, modelos não implementados                                                   |
 
 **Dívida técnica prioritária (ver ROADMAP.md):**
+
 1. 🔴 Type Hints ausentes em views e services
 2. 🟡 Dashboards síncronos (candidatos a async)
 3. 🟠 RBAC (permissões por grupo) não implementado
+
+**Atualizações Recentes:**
+
+- `[2026-04-14]` Refatoração da Sidebar: Agrupamento de links técnicos (Módulos, Inversores, etc.) dentro de um dropdown "Componentes" para reduzir poluição visual no app Solar. Implementado via CSS puro (acordeão de 2º nível).
 
 **Stack:** Python 3.13 · Django 6.0.3 · CSS puro (intelbras.css) · HTMX · SQLite (dev)
 

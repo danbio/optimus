@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Excluir {{ tipo }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-trash"></i> Excluir {{ tipo }}</h1>
+  <a href="{{ voltar_url }}" class="btn-secondary">
+    <i class="bi bi-arrow-left"></i> Voltar
+  </a>
+</div>
+
+<div class="card">
+  <div class="card-body" style="text-align: center; padding: 40px 20px;">
+    <i class="bi bi-exclamation-triangle-fill" style="font-size: 48px; color: var(--erro); display: block; margin-bottom: 16px;"></i>
+    <h2 style="font-size: 18px; margin-bottom: 8px;">Confirmar exclusão</h2>
+    <p style="color: var(--texto-corpo); margin-bottom: 24px;">
+      Tem certeza que deseja excluir <strong>{{ object }}</strong>?<br>
+      Esta ação não pode ser desfeita.
+    </p>
+    <form method="post" style="display: inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn-primary" style="background: var(--erro);"><i class="bi bi-trash"></i> Sim, excluir</button>
+      <a href="{{ voltar_url }}" class="btn-secondary" style="margin-left: 8px;"><i class="bi bi-x"></i> Cancelar</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

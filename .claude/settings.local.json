@@ -48,7 +48,8 @@
       "Bash(.venv/Scripts/python -c ':*)",
       "Bash(.venv/Scripts/python manage.py makemigrations)",
       "Bash(.venv/Scripts/python manage.py test solar --verbosity=2)",
-      "Bash(.venv/Scripts/python manage.py test solar --verbosity=1)"
+      "Bash(.venv/Scripts/python manage.py test solar --verbosity=1)",
+      "Bash(python -c ':*)"
     ],
     "additionalDirectories": [
       "c:\\Desenvolvimento\\optimus\\Optimus\\.claude"

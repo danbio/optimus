@@ -3,7 +3,12 @@
   {% for p in produtos %}
   <div class="busca-item" onclick="selecionarProduto({{ p.pk }}, '{{ p.descricao|escapejs }}', {{ p.pscf }})">
     <span style="font-weight: 600; font-size: 13px;">{{ p.descricao }}</span>
-    <span style="font-size: 12px; color: var(--texto-corpo);">Cód. {{ p.codigo }} · R$ {{ p.pscf }}</span>
+    <span style="font-size: 12px; color: var(--texto-corpo);">
+      Cód. {{ p.codigo }} · R$ {{ p.pscf }} ·
+      <span style="color: {% if p.quantidade_estoque <= 0 %}var(--erro){% else %}var(--verde){% endif %};">
+        Estoque: {{ p.quantidade_estoque|floatformat:2 }}
+      </span>
+    </span>
   </div>
   {% endfor %}
 </div>

@@ -1,5 +1,6 @@
 from django.conf import settings
-from django.db import models
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, models, transaction
 
 from core.models import BaseModel
 
@@ -95,21 +96,79 @@ class LancamentoFinanceiro(BaseModel):
         verbose_name = "lançamento financeiro"
         verbose_name_plural = "lançamentos financeiros"
         ordering = ["-criado_em"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    ~(models.Q(venda_balcao__isnull=False) & models.Q(proposta_solar__isnull=False))
+                    & ~(models.Q(venda_balcao__isnull=False) & models.Q(proposta_servico__isnull=False))
+                    & ~(models.Q(venda_balcao__isnull=False) & models.Q(ordem_servico__isnull=False))
+                    & ~(models.Q(proposta_solar__isnull=False) & models.Q(proposta_servico__isnull=False))
+                    & ~(models.Q(proposta_solar__isnull=False) & models.Q(ordem_servico__isnull=False))
+                    & ~(models.Q(proposta_servico__isnull=False) & models.Q(ordem_servico__isnull=False))
+                ),
+                name="financeiro_apenas_uma_origem",
+            )
+        ]
 
     def __str__(self):
         return f"{self.numero} — {self.cliente.nome} — R$ {self.valor_liquido}"
 
+    def clean(self):
+        super().clean()
+        origens = [self.venda_balcao_id, self.proposta_solar_id, self.proposta_servico_id, self.ordem_servico_id]
+        if sum(bool(origem) for origem in origens) > 1:
+            raise ValidationError("Um lançamento financeiro pode ter no máximo uma origem vinculada.")
+
+        if self.venda_balcao_id:
+            from balcao.models import Venda
+
+            cliente_origem_id = Venda.objects.filter(pk=self.venda_balcao_id).values_list("cliente_id", flat=True).first()
+            if not cliente_origem_id:
+                raise ValidationError({"venda_balcao": "Vendas avulsas sem cliente não podem ser vinculadas a lançamento financeiro."})
+            if self.cliente_id and cliente_origem_id != self.cliente_id:
+                raise ValidationError({"cliente": "O cliente deve ser o mesmo da venda de balcão vinculada."})
+        if self.proposta_solar_id and self.cliente_id:
+            from solar.models import PropostaSolar
+
+            cliente_origem_id = PropostaSolar.objects.filter(pk=self.proposta_solar_id).values_list("cliente_id", flat=True).first()
+            if cliente_origem_id and cliente_origem_id != self.cliente_id:
+                raise ValidationError({"cliente": "O cliente deve ser o mesmo da proposta solar vinculada."})
+        if self.proposta_servico_id and self.cliente_id:
+            from servicos.models import PropostaServico
+
+            cliente_origem_id = PropostaServico.objects.filter(pk=self.proposta_servico_id).values_list("cliente_id", flat=True).first()
+            if cliente_origem_id and cliente_origem_id != self.cliente_id:
+                raise ValidationError({"cliente": "O cliente deve ser o mesmo da proposta de serviço vinculada."})
+        if self.ordem_servico_id and self.cliente_id:
+            from ordens_servico.models import OrdemServico
+
+            cliente_origem_id = OrdemServico.objects.filter(pk=self.ordem_servico_id).values_list("cliente_id", flat=True).first()
+            if cliente_origem_id and cliente_origem_id != self.cliente_id:
+                raise ValidationError({"cliente": "O cliente deve ser o mesmo da OS vinculada."})
+
+    def _gerar_numero(self):
+        from django.utils import timezone
+
+        mes = timezone.now().strftime("%Y%m")
+        prefix = f"LAN-{mes}-"
+        ultimo = LancamentoFinanceiro.objects.filter(numero__startswith=prefix).order_by("numero").last()
+        seq = (int(ultimo.numero.split("-")[-1]) + 1) if ultimo else 1
+        return f"{prefix}{seq:04d}"
+
     def save(self, *args, **kwargs):
         self.valor_liquido = self.valor_bruto - self.desconto
-        if not self.numero:
-            from django.utils import timezone
+        self.clean()
+        if self.numero:
+            return super().save(*args, **kwargs)
 
-            mes = timezone.now().strftime("%Y%m")
-            prefix = f"LAN-{mes}-"
-            ultimo = LancamentoFinanceiro.objects.filter(numero__startswith=prefix).order_by("numero").last()
-            seq = (int(ultimo.numero.split("-")[-1]) + 1) if ultimo else 1
-            self.numero = f"{prefix}{seq:04d}"
-        super().save(*args, **kwargs)
+        for _ in range(5):
+            self.numero = self._gerar_numero()
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                self.numero = ""
+        raise IntegrityError("Falha ao gerar número único para lançamento financeiro após múltiplas tentativas.")
 
     @property
     def esta_vencido(self):

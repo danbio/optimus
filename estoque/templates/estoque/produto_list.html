@@ -69,6 +69,7 @@
         <th style="width: 160px;">BU / Segmento</th>
         <th style="width: 120px; text-align: right;">PSD (Custo)</th>
         <th style="width: 120px; text-align: right;">PSCF (Venda)</th>
+        <th style="width: 110px; text-align: right;">Estoque</th>
         <th style="width: 60px; text-align: center;">Status</th>
         <th style="width: 90px;"></th>
       </tr>
@@ -100,6 +101,9 @@
         </td>
         <td style="text-align: right; font-family: monospace; font-size: 13px; font-weight: 600;">
           {{ p.pscf|brl }}
+        </td>
+        <td style="text-align: right; font-family: monospace; font-size: 13px; color: {% if p.quantidade_estoque <= 0 %}var(--erro){% else %}var(--texto-titulo){% endif %};">
+          {{ p.quantidade_estoque|floatformat:2 }}
         </td>
         <td style="text-align: center;">
           {% if p.ativo %}

@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}Histórico — {{ cliente.nome }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-clock-history"></i> Histórico do Cliente</h1>
+    <p style="margin: 0; color: var(--texto-secundario);">{{ cliente.nome }}</p>
+  </div>
+  <a href="{% url 'clientes:detalhe' cliente.pk %}" class="btn btn-outline">
+    <i class="bi bi-arrow-left"></i> Voltar ao Cliente
+  </a>
+</div>
+
+<!-- Chamados -->
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div class="card-header">
+    <span><i class="bi bi-headset"></i> Chamados</span>
+    <span class="badge badge--status-aberto">{{ chamados.count }}</span>
+  </div>
+  {% if chamados %}
+  <div class="table-container">
+    <table class="tabela">
+      <thead>
+        <tr>
+          <th>Número</th>
+          <th>Assunto</th>
+          <th>Tipo</th>
+          <th>Status</th>
+          <th>Prioridade</th>
+          <th>Aberto em</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in chamados %}
+        <tr>
+          <td>{{ c.numero }}</td>
+          <td>{{ c.assunto|truncatechars:60 }}</td>
+          <td>{{ c.get_tipo_display }}</td>
+          <td><span class="badge badge--status-{{ c.status }}">{{ c.get_status_display }}</span></td>
+          <td><span class="badge badge--prioridade-{{ c.prioridade }}">{{ c.get_prioridade_display }}</span></td>
+          <td>{{ c.criado_em|date:"d/m/Y" }}</td>
+          <td><a href="{% url 'pos_venda:detalhe' c.pk %}" class="btn btn-sm btn-secondary"><i class="bi bi-eye"></i></a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body">
+    <p style="color: var(--texto-secundario); margin: 0;">Nenhum chamado registrado.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Ordens de Serviço -->
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div class="card-header">
+    <span><i class="bi bi-tools"></i> Ordens de Serviço</span>
+    <span class="badge badge--status-aberto">{{ ordens.count }}</span>
+  </div>
+  {% if ordens %}
+  <div class="table-container">
+    <table class="tabela">
+      <thead>
+        <tr>
+          <th>Número</th>
+          <th>Tipo</th>
+          <th>Status</th>
+          <th>Técnico</th>
+          <th>Data</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for os in ordens %}
+        <tr>
+          <td>{{ os.numero }}</td>
+          <td>{{ os.get_tipo_display }}</td>
+          <td><span class="badge badge--status-{{ os.status }}">{{ os.get_status_display }}</span></td>
+          <td>{{ os.responsavel.get_full_name|default:os.responsavel.username|default:"—" }}</td>
+          <td>{{ os.criado_em|date:"d/m/Y" }}</td>
+          <td><a href="{% url 'ordens_servico:detalhe' os.pk %}" class="btn btn-sm btn-secondary"><i class="bi bi-eye"></i></a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body">
+    <p style="color: var(--texto-secundario); margin: 0;">Nenhuma OS registrada.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Propostas Solar -->
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div class="card-header">
+    <span><i class="bi bi-sun"></i> Propostas Solar</span>
+    <span class="badge badge--status-aberto">{{ propostas_solar.count }}</span>
+  </div>
+  {% if propostas_solar %}
+  <div class="table-container">
+    <table class="tabela">
+      <thead>
+        <tr>
+          <th>Número</th>
+          <th>Status</th>
+          <th>Potência (kWp)</th>
+          <th>Valor</th>
+          <th>Data</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in propostas_solar %}
+        <tr>
+          <td>{{ p.numero }}</td>
+          <td><span class="badge badge--status-{{ p.status }}">{{ p.get_status_display }}</span></td>
+          <td>{{ p.potencia_total|default:"—" }}</td>
+          <td>R$ {{ p.valor_total|floatformat:2 }}</td>
+          <td>{{ p.criado_em|date:"d/m/Y" }}</td>
+          <td><a href="{% url 'solar:detalhe' p.pk %}" class="btn btn-sm btn-secondary"><i class="bi bi-eye"></i></a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body">
+    <p style="color: var(--texto-secundario); margin: 0;">Nenhuma proposta solar registrada.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Propostas de Serviço -->
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div class="card-header">
+    <span><i class="bi bi-shield-check"></i> Propostas de Serviço</span>
+    <span class="badge badge--status-aberto">{{ propostas_servico.count }}</span>
+  </div>
+  {% if propostas_servico %}
+  <div class="table-container">
+    <table class="tabela">
+      <thead>
+        <tr>
+          <th>Número</th>
+          <th>Tipo</th>
+          <th>Status</th>
+          <th>Valor</th>
+          <th>Data</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in propostas_servico %}
+        <tr>
+          <td>{{ p.numero }}</td>
+          <td>{{ p.get_tipo_servico_display }}</td>
+          <td><span class="badge badge--status-{{ p.status }}">{{ p.get_status_display }}</span></td>
+          <td>R$ {{ p.valor_total|floatformat:2 }}</td>
+          <td>{{ p.criado_em|date:"d/m/Y" }}</td>
+          <td><a href="{% url 'servicos:detalhe' p.pk %}" class="btn btn-sm btn-secondary"><i class="bi bi-eye"></i></a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body">
+    <p style="color: var(--texto-secundario); margin: 0;">Nenhuma proposta de serviço registrada.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Vendas Balcão -->
+<div class="card">
+  <div class="card-header">
+    <span><i class="bi bi-cart"></i> Vendas Balcão</span>
+    <span class="badge badge--status-aberto">{{ vendas.count }}</span>
+  </div>
+  {% if vendas %}
+  <div class="table-container">
+    <table class="tabela">
+      <thead>
+        <tr>
+          <th>Número</th>
+          <th>Status</th>
+          <th>Valor</th>
+          <th>Data</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in vendas %}
+        <tr>
+          <td>{{ v.numero }}</td>
+          <td><span class="badge badge--status-{{ v.status }}">{{ v.get_status_display }}</span></td>
+          <td>R$ {{ v.valor_total|floatformat:2 }}</td>
+          <td>{{ v.criado_em|date:"d/m/Y" }}</td>
+          <td><a href="{% url 'balcao:detalhe' v.pk %}" class="btn btn-sm btn-secondary"><i class="bi bi-eye"></i></a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body">
+    <p style="color: var(--texto-secundario); margin: 0;">Nenhuma venda balcão registrada.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

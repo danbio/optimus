@@ -1,0 +1,47 @@
+<tr id="item-{{ index }}" class="item-proposta-row componente-equipamento" data-index="{{ index }}">
+  <td class="align-middle p-2" style="width: 25%;">
+    <select class="form-control selector-categoria" style="font-size: 13px;" onchange="alternarCategoriaEquipamento(this)">
+      <option value="">Categoria...</option>
+      <option value="modulo" {% if item_form.instance.modulo or item_form.modulo.value %}selected{% endif %}>Módulo</option>
+      <option value="inversor" {% if item_form.instance.inversor or item_form.inversor.value %}selected{% endif %}>Inversor</option>
+      <option value="estrutura" {% if item_form.instance.estrutura or item_form.estrutura.value %}selected{% endif %}>Estrutura</option>
+      <option value="material" {% if item_form.instance.material or item_form.material.value %}selected{% endif %}>Material E.</option>
+    </select>
+  </td>
+
+  <td class="align-middle p-2" style="width: 55%;">
+    <div class="combo-modulo" style="display: {% if item_form.instance.modulo or item_form.modulo.value %}block{% else %}none{% endif %};">
+      {{ item_form.modulo }}
+    </div>
+    <div class="combo-inversor" style="display: {% if item_form.instance.inversor or item_form.inversor.value %}block{% else %}none{% endif %};">
+      {{ item_form.inversor }}
+    </div>
+    <div class="combo-estrutura" style="display: {% if item_form.instance.estrutura or item_form.estrutura.value %}block{% else %}none{% endif %};">
+      {{ item_form.estrutura }}
+    </div>
+    <div class="combo-material" style="display: {% if item_form.instance.material or item_form.material.value %}block{% else %}none{% endif %};">
+      {{ item_form.material }}
+    </div>
+    <div class="msg-selecione-categoria text-muted ps-2" style="font-size: 12px; font-style: italic; display: {% if item_form.instance.modulo or item_form.modulo.value or item_form.instance.inversor or item_form.inversor.value or item_form.instance.estrutura or item_form.estrutura.value or item_form.instance.material or item_form.material.value %}none{% else %}block{% endif %};">
+      Especifique para buscar...
+    </div>
+  </td>
+
+  <td class="align-middle p-2 text-center" style="width: 15%;">
+    {{ item_form.quantidade }}
+  </td>
+
+  <td class="align-middle p-2 text-center" style="width: 5%;">
+    {% if item_form.instance.pk %}
+      <input type="hidden" name="{{ item_form.DELETE.html_name }}" id="{{ item_form.DELETE.auto_id }}" value="">
+      <button type="button" class="btn-danger btn-sm px-2 py-1" onclick="removerItem('{{ index }}')" title="Remover item" style="background: transparent; border: none; color: var(--erro);">
+        <i class="bi bi-x-circle fs-5"></i>
+      </button>
+    {% else %}
+      <button type="button" class="btn-danger btn-sm px-2 py-1" onclick="removerLinhaNova('item-{{ index }}')" title="Remover item" style="background: transparent; border: none; color: var(--erro);">
+        <i class="bi bi-x-circle fs-5"></i>
+      </button>
+    {% endif %}
+    {{ item_form.id }}
+  </td>
+</tr>

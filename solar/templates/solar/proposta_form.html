@@ -10,7 +10,7 @@
   </a>
 </div>
 
-<form method="post" novalidate>
+<form method="post" novalidate autocomplete="off">
   {% csrf_token %}
 
   {# ── CLIENTE ──────────────────────────────────────────── #}
@@ -41,25 +41,24 @@
       <div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-end;">
         <div class="form-group" style="flex: 1; min-width: 160px;">
           <label for="id_consumo_medio_kwh">
-            Consumo médio <span class="obrigatorio">*</span>
+            Consumo <span class="obrigatorio">*</span>
             <span class="form-ajuda" style="font-weight: 400;">(kWh/mês)</span>
           </label>
           {{ form.consumo_medio_kwh }}
           {% if form.consumo_medio_kwh.errors %}<div class="form-error">{% for e in form.consumo_medio_kwh.errors %}{{ e }}{% endfor %}</div>{% endif %}
         </div>
-        <div class="form-group" style="flex: 0 0 120px;">
-          <label for="id_hsp">
-            HSP
-            <span class="form-ajuda" style="font-weight: 400;">(h/dia)</span>
-          </label>
+        <div class="form-group" style="flex: 2; min-width: 200px;">
+          <label for="id_modulo">Módulo de Referência <span class="obrigatorio">*</span></label>
+          {{ form.modulo }}
+          {% if form.modulo.errors %}<div class="form-error">{% for e in form.modulo.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
+        <div class="form-group" style="flex: 0 0 100px;">
+          <label for="id_hsp">HSP <span class="form-ajuda" style="font-weight: 400;">(h/dia)</span></label>
           {{ form.hsp }}
           {% if form.hsp.errors %}<div class="form-error">{% for e in form.hsp.errors %}{{ e }}{% endfor %}</div>{% endif %}
         </div>
-        <div class="form-group" style="flex: 0 0 130px;">
-          <label for="id_fator_eficiencia">
-            Fator
-            <span class="form-ajuda" style="font-weight: 400;">(perdas)</span>
-          </label>
+        <div class="form-group" style="flex: 0 0 100px;">
+          <label for="id_fator_eficiencia">Fator</label>
           {{ form.fator_eficiencia }}
           {% if form.fator_eficiencia.errors %}<div class="form-error">{% for e in form.fator_eficiencia.errors %}{{ e }}{% endfor %}</div>{% endif %}
         </div>
@@ -84,36 +83,41 @@
     </div>
   </div>
 
-  {# ── EQUIPAMENTOS ─────────────────────────────────────── #}
+  {# ── ITENS DA PROPOSTA ─────────────────────────────────── #}
   <div class="card">
-    <div class="card-header"><i class="bi bi-cpu"></i> Equipamentos</div>
-    <div class="card-body">
-      <div class="d-flex gap-2" style="flex-wrap: wrap;">
-        <div class="form-group" style="flex: 2; min-width: 240px;">
-          <label for="id_modulo">Módulo fotovoltaico <span class="obrigatorio">*</span></label>
-          {{ form.modulo }}
-          {% if form.modulo.errors %}<div class="form-error">{% for e in form.modulo.errors %}{{ e }}{% endfor %}</div>{% endif %}
-        </div>
-        <div class="form-group" style="flex: 0 0 140px;">
-          <label for="id_quantidade_modulos">
-            Qtd. módulos <span class="obrigatorio">*</span>
-          </label>
-          {{ form.quantidade_modulos }}
-          {% if form.quantidade_modulos.errors %}<div class="form-error">{% for e in form.quantidade_modulos.errors %}{{ e }}{% endfor %}</div>{% endif %}
-        </div>
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-cpu"></i> Itens da Proposta</span>
+      <button type="button" class="btn-secondary btn-sm"
+              id="btn-add-item"
+              hx-get="{% url 'solar:adicionar_item' %}"
+              hx-vals='js:{index: document.querySelectorAll(".item-proposta-row").length}'
+              hx-target="#itens-container"
+              hx-swap="beforeend">
+        <i class="bi bi-plus-lg"></i> Adicionar Item
+      </button>
+    </div>
+    <div class="card-body p-0 pb-2">
+      <div id="formset-management">
+        {{ formset.management_form }}
       </div>
-      <div class="d-flex gap-2" style="flex-wrap: wrap;">
-        <div class="form-group" style="flex: 2; min-width: 240px;">
-          <label for="id_inversor">Inversor <span class="obrigatorio">*</span></label>
-          {{ form.inversor }}
-          {% if form.inversor.errors %}<div class="form-error">{% for e in form.inversor.errors %}{{ e }}{% endfor %}</div>{% endif %}
-        </div>
-        <div class="form-group" style="flex: 2; min-width: 240px;">
-          <label for="id_estrutura">Estrutura de fixação <span class="obrigatorio">*</span></label>
-          {{ form.estrutura }}
-          {% if form.estrutura.errors %}<div class="form-error">{% for e in form.estrutura.errors %}{{ e }}{% endfor %}</div>{% endif %}
-        </div>
-      </div>
+      <table class="tabela" style="width: 100%;">
+        <thead>
+            <tr>
+              <th class="ps-3" style="width: 25%;">Categoria</th>
+              <th class="ps-2" style="width: 55%;">Equipamento Específico</th>
+              <th class="text-center" style="width: 15%;">Qtd.</th>
+              <th class="text-center" style="width: 5%;"></th>
+            </tr>
+        </thead>
+        <tbody id="itens-container">
+          {% for item_form in formset %}
+            {% include "solar/_item_proposta_row.html" with item_form=item_form index=forloop.counter0 %}
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if formset.non_form_errors %}
+        <div class="form-error px-3 pt-2">{{ formset.non_form_errors }}</div>
+      {% endif %}
     </div>
   </div>
 
@@ -123,18 +127,16 @@
     <div class="card-body">
       <div class="d-flex gap-2" style="flex-wrap: wrap;">
         <div class="form-group" style="flex: 1; min-width: 180px;">
-          <label for="id_valor_equipamentos">Equipamentos (R$)</label>
-          {{ form.valor_equipamentos }}
-          {% if form.valor_equipamentos.errors %}<div class="form-error">{% for e in form.valor_equipamentos.errors %}{{ e }}{% endfor %}</div>{% endif %}
+          <label>Custo Base de Equipamentos (R$)</label>
+          <div class="form-control" style="background: var(--fundo-alt); color: var(--texto-corpo);"
+               id="custo-equipamentos">
+            {% if object %}{{ object.valor_equipamentos|floatformat:2 }}{% else %}—{% endif %}
+          </div>
         </div>
         <div class="form-group" style="flex: 1; min-width: 180px;">
           <label for="id_valor_instalacao">Instalação / mão de obra (R$)</label>
           {{ form.valor_instalacao }}
           {% if form.valor_instalacao.errors %}<div class="form-error">{% for e in form.valor_instalacao.errors %}{{ e }}{% endfor %}</div>{% endif %}
-        </div>
-        <div class="form-group" style="flex: 1; min-width: 180px;">
-          <label>Total (R$)</label>
-          <div id="total-display" class="form-control" style="background: var(--fundo-alt); font-weight: 700; color: var(--verde);">—</div>
         </div>
       </div>
     </div>
@@ -160,6 +162,131 @@
     </a>
   </div>
 </form>
+
+<script>
+  function atualizarTotalForms() {
+    const totalForms = document.getElementById('id_itens-TOTAL_FORMS');
+    const rows = document.querySelectorAll('.item-proposta-row');
+    totalForms.value = rows.length;
+  }
+
+  // HTMX dispara 'htmx:afterOnLoad' após adicionar a linha
+  document.addEventListener('htmx:afterOnLoad', function(evt) {
+    if (evt.detail.target.id === 'itens-container') {
+      atualizarTotalForms();
+    }
+  });
+
+  function removerLinhaNova(id) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.remove();
+      atualizarTotalForms();
+      reindexarItens();
+      recalcularCustoEquipamentos();
+    }
+  }
+
+  function removerItem(index) {
+    const row = document.getElementById(`item-${index}`);
+    const deleteInput = row.querySelector('input[name$="-DELETE"]');
+    if (deleteInput) {
+      deleteInput.value = 'on';
+      row.style.display = 'none';
+      row.classList.remove('item-proposta-row');
+      recalcularCustoEquipamentos();
+    }
+  }
+
+  function reindexarItens() {
+    const rows = document.querySelectorAll('.item-proposta-row');
+    const totalForms = document.getElementById('id_itens-TOTAL_FORMS');
+    
+    rows.forEach((row, idx) => {
+      // Atualiza IDs e Nomes dos inputs
+      const inputs = row.querySelectorAll('input, select, textarea');
+      inputs.forEach(input => {
+        if (input.name) {
+          input.name = input.name.replace(/itens-\d+-/, `itens-${idx}-`);
+        }
+        if (input.id) {
+          input.id = input.id.replace(/id_itens-\d+-/, `id_itens-${idx}-`);
+        }
+      });
+      row.id = `item-${idx}`;
+    });
+    totalForms.value = rows.length;
+  }
+
+  function alternarCategoriaEquipamento(selectElement) {
+    const row = selectElement.closest('.componente-equipamento');
+    const valor = selectElement.value;
+    
+    // Esconder todos os combos e zerar seus valores se não for o selecionado
+    const categorias = ['modulo', 'inversor', 'estrutura', 'material'];
+    let algumVisivel = false;
+
+    categorias.forEach(cat => {
+      const wrapper = row.querySelector(`.combo-${cat}`);
+      const input = wrapper.querySelector('select, input');
+      
+      if (cat === valor) {
+        wrapper.style.display = 'block';
+        algumVisivel = true;
+      } else {
+        wrapper.style.display = 'none';
+        if (input) {
+          input.value = ''; // Limpa para o Django ignorar os FKs não selecionados
+        }
+      }
+    });
+
+    const msg = row.querySelector('.msg-selecione-categoria');
+    if (msg) {
+      msg.style.display = algumVisivel ? 'none' : 'block';
+    }
+  }
+
+  // Inicializa o estado visual após o HTMX injetar nova linha
+  document.body.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target.id === 'itens-container') {
+      atualizarTotalForms();
+      // Inicializa seletores injetados no Formset recém adicionado
+      const newSeletores = event.detail.target.querySelectorAll('.selector-categoria');
+      newSeletores.forEach(s => alternarCategoriaEquipamento(s));
+      // Recalcula o total ao adicionar nova linha
+      recalcularCustoEquipamentos();
+    }
+  });
+
+  function recalcularCustoEquipamentos() {
+    const container = document.getElementById('itens-container');
+    const management = document.getElementById('formset-management');
+    const params = new URLSearchParams();
+    container.querySelectorAll('select[name], input[name]').forEach(el => {
+      if (el.name.endsWith('-DELETE')) return;
+      params.append(el.name, el.value);
+    });
+    management.querySelectorAll('input[name]').forEach(el => {
+      params.append(el.name, el.value);
+    });
+    fetch('{% url "solar:calcular_total" %}?' + params.toString(), {
+      headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(r => r.text())
+    .then(txt => { document.getElementById('custo-equipamentos').textContent = txt; });
+  }
+
+  // Dispara a lógica nos formsets já existentes (Load & Edição)
+  document.addEventListener("DOMContentLoaded", function() {
+    const seletores = document.querySelectorAll('.selector-categoria');
+    seletores.forEach(s => alternarCategoriaEquipamento(s));
+
+    recalcularCustoEquipamentos();
+    document.getElementById('itens-container').addEventListener('change', recalcularCustoEquipamentos);
+  });
+
+</script>
 {% endblock %}
 
 {% block extra_css %}
@@ -206,23 +333,4 @@
     color: var(--texto-titulo);
   }
 </style>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-(function () {
-  function fmt(v) {
-    return parseFloat(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-  function atualizarTotal() {
-    var equip = parseFloat(document.getElementById('id_valor_equipamentos').value.replace(',', '.') || 0);
-    var inst = parseFloat(document.getElementById('id_valor_instalacao').value.replace(',', '.') || 0);
-    var total = equip + inst;
-    document.getElementById('total-display').textContent = total > 0 ? 'R$ ' + fmt(total) : '—';
-  }
-  document.getElementById('id_valor_equipamentos').addEventListener('input', atualizarTotal);
-  document.getElementById('id_valor_instalacao').addEventListener('input', atualizarTotal);
-  atualizarTotal();
-})();
-</script>
 {% endblock %}

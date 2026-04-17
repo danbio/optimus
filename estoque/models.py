@@ -31,6 +31,7 @@ class Produto(BaseModel):
     pscf = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0"), verbose_name="PSCF — Preço de Venda")
     preco_referencia = models.CharField(max_length=30, blank=True, choices=PRECO_REF_CHOICES, verbose_name="controle de venda")
     qtd_multipla = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("1"), verbose_name="qtd. múltipla")
+    quantidade_estoque = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"), verbose_name="saldo em estoque")
 
     # Outros
     observacoes = models.TextField(blank=True, verbose_name="observações")

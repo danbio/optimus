@@ -1,11 +1,13 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
@@ -276,6 +278,7 @@ class OrdemServicoDetailView(LoginRequiredMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         ctx["foto_form"] = FotoOSForm()
         ctx["assinatura_form"] = AssinaturaForm()
+        ctx["agendamento_min"] = timezone.localtime().strftime("%Y-%m-%dT%H:%M")
         return ctx
 
 
@@ -296,19 +299,53 @@ class OrdemServicoDeleteView(LoginRequiredMixin, DeleteView):
 # ── Transições de Estado ─────────────────────────────────────────────────────
 
 
+def _parse_data_agendamento(valor):
+    if not valor:
+        return None
+    data = parse_datetime(valor.strip())
+    if not data:
+        return None
+    if timezone.is_naive(data):
+        data = timezone.make_aware(data, timezone.get_current_timezone())
+    return data
+
+
+def _atualizar_status_proposta_vinculada(os_obj):
+    status_pendentes = [
+        OrdemServico.STATUS_ABERTA,
+        OrdemServico.STATUS_AGENDADA,
+        OrdemServico.STATUS_EM_EXECUCAO,
+        OrdemServico.STATUS_SUSPENSA,
+    ]
+
+    if os_obj.proposta_solar_id:
+        proposta = os_obj.proposta_solar
+        possui_outra_os_pendente = proposta.ordens_servico.exclude(pk=os_obj.pk).filter(status__in=status_pendentes).exists()
+        if not possui_outra_os_pendente and proposta.status != "cancelada":
+            proposta.status = "concluida"
+            proposta.save()
+
+    if os_obj.proposta_servico_id:
+        proposta = os_obj.proposta_servico
+        possui_outra_os_pendente = proposta.ordens_servico.exclude(pk=os_obj.pk).filter(status__in=status_pendentes).exists()
+        if not possui_outra_os_pendente and proposta.status != "cancelada":
+            proposta.status = "concluida"
+            proposta.save()
+
+
 @login_required
 @require_POST
 def agendar_os(request, pk):
     os_obj = get_object_or_404(OrdemServico, pk=pk)
     if os_obj.status == OrdemServico.STATUS_ABERTA:
-        data = request.POST.get("data_agendamento")
-        if data:
+        data = _parse_data_agendamento(request.POST.get("data_agendamento"))
+        if data and data > timezone.now():
             os_obj.data_agendamento = data
             os_obj.status = OrdemServico.STATUS_AGENDADA
             os_obj.save()
             messages.success(request, f"OS {os_obj.numero} agendada com sucesso.")
         else:
-            messages.error(request, "Informe a data de agendamento.")
+            messages.error(request, "Informe uma data de agendamento válida e futura.")
     return redirect("ordens_servico:detalhe", pk=pk)
 
 
@@ -340,20 +377,14 @@ def concluir_os(request, pk):
                 )
                 return redirect("ordens_servico:detalhe", pk=pk)
 
-            os_obj.status = OrdemServico.STATUS_CONCLUIDA
-            os_obj.data_conclusao = timezone.now()
-            os_obj.assinatura_nome = form.cleaned_data["assinatura_nome"]
-            os_obj.assinatura_confirmada = True
-            os_obj.assinatura_data = timezone.now()
-            os_obj.save()
-
-            # Atualizar proposta vinculada para "concluída"
-            if os_obj.proposta_solar:
-                os_obj.proposta_solar.status = "concluida"
-                os_obj.proposta_solar.save()
-            elif os_obj.proposta_servico:
-                os_obj.proposta_servico.status = "concluida"
-                os_obj.proposta_servico.save()
+            with transaction.atomic():
+                os_obj.status = OrdemServico.STATUS_CONCLUIDA
+                os_obj.data_conclusao = timezone.now()
+                os_obj.assinatura_nome = form.cleaned_data["assinatura_nome"]
+                os_obj.assinatura_confirmada = True
+                os_obj.assinatura_data = timezone.now()
+                os_obj.save()
+                _atualizar_status_proposta_vinculada(os_obj)
 
             messages.success(request, f"OS {os_obj.numero} concluída com sucesso.")
         else:
@@ -396,14 +427,14 @@ def suspender_os(request, pk):
 def reagendar_os(request, pk):
     os_obj = get_object_or_404(OrdemServico, pk=pk)
     if os_obj.status in (OrdemServico.STATUS_AGENDADA, OrdemServico.STATUS_SUSPENSA):
-        data = request.POST.get("data_agendamento")
-        if data:
+        data = _parse_data_agendamento(request.POST.get("data_agendamento"))
+        if data and data > timezone.now():
             os_obj.data_agendamento = data
             os_obj.status = OrdemServico.STATUS_AGENDADA
             os_obj.save()
             messages.success(request, f"OS {os_obj.numero} reagendada.")
         else:
-            messages.error(request, "Informe a nova data de agendamento.")
+            messages.error(request, "Informe uma nova data de agendamento válida e futura.")
     return redirect("ordens_servico:detalhe", pk=pk)
 
 

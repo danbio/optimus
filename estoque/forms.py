@@ -20,6 +20,7 @@ class ProdutoForm(forms.ModelForm):
             "pscf",
             "preco_referencia",
             "qtd_multipla",
+            "quantidade_estoque",
             "observacoes",
             "ativo",
         ]
@@ -42,6 +43,8 @@ class ProdutoForm(forms.ModelForm):
         self.fields["psd"].widget.attrs.update({"placeholder": "0,00", "inputmode": "decimal"})
         self.fields["pscf"].widget.attrs.update({"placeholder": "0,00", "inputmode": "decimal"})
         self.fields["qtd_multipla"].widget.attrs.update({"placeholder": "1", "inputmode": "decimal"})
+        self.fields["quantidade_estoque"].widget.attrs.update({"placeholder": "0,00", "inputmode": "decimal"})
+        self.fields["quantidade_estoque"].required = False
         self.fields["observacoes"].widget = forms.Textarea(
             attrs={
                 "class": "form-control",
