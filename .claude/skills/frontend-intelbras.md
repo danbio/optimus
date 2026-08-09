@@ -43,6 +43,12 @@
 
 ---
 
+## Border-radius
+
+**Sempre 3px** — conforme guia Intelbras. Não arredondar botões/inputs acima disso.
+
+---
+
 ## Tipografia
 
 - **Font stack:** `"SF Pro", "Roboto", "Arial", "Helvetica", sans-serif`

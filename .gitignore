@@ -35,6 +35,9 @@ local_settings.py
 *.swp
 *.swo
 
+# Worktrees temporários criados por agentes (Claude Code)
+.claude/worktrees/
+
 # OS
 .DS_Store
 Thumbs.db

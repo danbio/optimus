@@ -106,23 +106,92 @@ urlpatterns = [
 
 ---
 
-## HTMX — busca parcial sem reload
+## FBV com ação de status — padrão do projeto
+
+Transições de status (aprovar, cancelar, faturar) usam FBV com `@login_required` + `@require_POST`:
 
 ```python
-# View retorna fragmento HTML quando requisição é HTMX
-def buscar_cliente(request):
-    q = request.GET.get("q", "")
-    clientes = Cliente.objects.filter(nome__icontains=q)[:10]
-    if request.htmx:
-        return render(request, "clientes/_lista_parcial.html", {"clientes": clientes})
-    return render(request, "clientes/buscar.html", {"clientes": clientes})
+from django.contrib.auth.decorators import login_required
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import get_object_or_404, redirect
+from django.views.decorators.http import require_POST
+
+from .models import MeuModel
+
+
+@login_required
+@require_POST
+def aprovar(request: HttpRequest, pk: int) -> HttpResponse:
+    obj = get_object_or_404(MeuModel, pk=pk)
+    if obj.status == MeuModel.STATUS_ENVIADA:
+        obj.status = MeuModel.STATUS_APROVADA
+        obj.save()
+        messages.success(request, f"{obj} aprovado.")
+    else:
+        messages.error(request, "Status inválido para esta ação.")
+    return redirect("app:detalhe", pk=pk)
+```
+
+---
+
+## HTMX — endpoint de fragmento HTML
+
+`django-htmx` **não está instalado**. Não usar `request.htmx`. Os endpoints HTMX são FBVs simples que retornam `render()` diretamente:
+
+```python
+@login_required
+def buscar_cliente(request: HttpRequest) -> HttpResponse:
+    q = request.GET.get("q", "").strip()
+    clientes = Cliente.objects.filter(nome__icontains=q, ativo=True)[:10] if q else []
+    return render(request, "clientes/_busca_resultado.html", {"clientes": clientes})
 ```
 
 ```html
-<!-- Template com HTMX -->
 <input type="text" name="q"
        hx-get="{% url 'clientes:buscar' %}"
        hx-target="#resultado"
        hx-trigger="keyup changed delay:300ms">
 <div id="resultado"></div>
+```
+
+---
+
+## DeleteView padrão
+
+```python
+from django.views.generic import DeleteView
+
+class NomeModelDeleteView(LoginRequiredMixin, DeleteView):
+    model = NomeModel
+    template_name = "nome_app/nomemodel_confirm_delete.html"
+    success_url = reverse_lazy("nome_app:lista")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"{self.object} removido.")
+        return super().form_valid(form)
+```
+
+---
+
+## Subpacote de views (apps com >300 linhas)
+
+Quando `views.py` ultrapassar 300 linhas, quebrar em subpacote:
+
+```
+app/
+└── views/
+    ├── __init__.py   # re-exporta tudo: from .propostas import *
+    ├── propostas.py
+    └── acoes.py      # FBVs de transição de status
+```
+
+---
+
+## Type hints — obrigatório (ROADMAP Fase 1)
+
+```python
+from django.http import HttpRequest, HttpResponse
+
+def minha_view(request: HttpRequest, pk: int) -> HttpResponse:
+    ...
 ```

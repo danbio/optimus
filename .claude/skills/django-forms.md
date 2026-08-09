@@ -146,6 +146,63 @@ class ClienteForm(forms.ModelForm):
 
 ---
 
+## Inline formset — padrão do projeto
+
+Usado em `solar` (ItemPropostaSolar), `servicos` (ItemServico + ItemProduto), `ordens_servico` (ItemChecklist):
+
+```python
+# forms.py
+from django.forms import inlineformset_factory
+from .models import Proposta, ItemProposta
+
+ItemPropostaFormSet = inlineformset_factory(
+    Proposta,
+    ItemProposta,
+    form=ItemPropostaForm,
+    extra=0,
+    can_delete=True,
+    min_num=1,
+    validate_min=True,
+)
+```
+
+**No CreateView/UpdateView — passar instância corretamente:**
+
+```python
+def get_context_data(self, **kwargs):
+    ctx = super().get_context_data(**kwargs)
+    if self.request.POST:
+        ctx["formset"] = ItemPropostaFormSet(self.request.POST, instance=self.object)
+    else:
+        ctx["formset"] = ItemPropostaFormSet(instance=self.object)
+    return ctx
+
+def form_valid(self, form):
+    context = self.get_context_data()
+    formset = context["formset"]
+    if not formset.is_valid():
+        return self.render_to_response(self.get_context_data(form=form))
+    obj = form.save(commit=False)
+    obj.save()
+    formset.instance = obj
+    formset.save()
+    ...
+```
+
+**No template:**
+
+```html
+{{ formset.management_form }}
+{% for item_form in formset %}
+  <div class="formset-row">
+    {{ item_form.as_p }}
+    {{ item_form.DELETE }}
+  </div>
+{% endfor %}
+```
+
+---
+
 ## O que NÃO fazer
 
 - Nunca usar `fields = "__all__"` em produção — listar explicitamente

@@ -5,7 +5,6 @@ import math
 from ..models import (
     EstruturaFixacao,
     Inversor,
-    MateriaisEletricos,
     ModuloFotovoltaico,
 )
 

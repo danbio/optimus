@@ -29,7 +29,6 @@ from ..models import (
 )
 from ._helpers import calcular_kwp
 
-
 # ── CRUD de Propostas ─────────────────────────────────────────────────────────
 
 

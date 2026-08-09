@@ -23,7 +23,6 @@ from ..models import (
     PrecoEquipamentoSolar,
 )
 
-
 # ── Módulos Fotovoltaicos ─────────────────────────────────────────────────────
 
 
