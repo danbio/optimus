@@ -17,7 +17,8 @@
 | RBAC (grupos de permissão) | ✅ Feito (2026-08-09) | — (era o bloqueador de produção) |
 | Hardening de produção (HTTPS/HSTS/cookies) | ✅ Feito (2026-08-09) | — |
 | PostgreSQL via DATABASE_URL | ✅ Feito (2026-08-09) | — |
-| Backup automático do banco | 🔴 Pendente | **Implantação em produção** |
+| Backup do banco (`backup_db`) | ✅ Feito (2026-08-09) | — (falta agendar execução em produção) |
+| Mojibake em 24 produtos do estoque | 🔴 Pendente | Nada, mas os nomes aparecem errados na tela |
 | Hospedagem com suporte a Python | 🔴 Pendente | **Implantação em produção** |
 | PDF de propostas | 🔲 Backlog | Independente |
 
