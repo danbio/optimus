@@ -166,6 +166,27 @@ Nenhum commit deve ser feito com falhas nesses 4 passos.
 | ✅ Feito | RBAC (permissões por grupo) | `core/permissoes.py` + middleware |
 | 🟠 Baixa | Async views para dashboards | Depende de type hints |
 
+### Backup
+
+```powershell
+python manage.py backup_db              # grava em backups/ (fora do git)
+python manage.py backup_db --manter 7   # rotaciona, mantém os 7 mais recentes
+python manage.py loaddata backups/optimus_AAAA-MM-DD_HHMM.json.gz  # restaurar
+```
+
+Usa `dumpdata` (JSON comprimido), então o mesmo arquivo restaura tanto em
+SQLite quanto em PostgreSQL — serve inclusive para a futura migração.
+
+Duas armadilhas já resolvidas dentro do comando, **não reintroduzir**:
+- Não usar `dumpdata --output`: no Windows ele grava na codificação do console
+  (cp1252) e **aborta no meio** ao topar com caractere fora dela, deixando um
+  arquivo truncado com cara de backup bom. O comando serializa em memória e
+  grava com UTF-8 explícito.
+- O comando **relê e valida** o arquivo depois de gravar, e descarta se estiver
+  corrompido — backup que falha calado é pior que backup nenhum.
+
+`loaddata` soma ao que existe; para restauração limpa, partir de banco vazio.
+
 ### RBAC — como funciona
 
 Três grupos: **Administrador**, **Vendedor**, **Técnico** (`python manage.py seed_grupos`).
