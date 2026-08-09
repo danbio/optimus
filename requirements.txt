@@ -2,6 +2,9 @@ asgiref==3.11.1
 Django==6.0.3
 openpyxl>=3.1.0
 Pillow>=11.0.0
+# Driver PostgreSQL — usado só em produção (via DATABASE_URL). Em dev o
+# projeto roda em SQLite e não precisa dele instalado.
+psycopg[binary]>=3.2
 pyxlsb>=1.0.10
 python-dotenv==1.2.2
 ruff==0.15.6
