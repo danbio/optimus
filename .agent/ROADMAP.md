@@ -14,8 +14,17 @@
 | Quebrar views >300 linhas | 🟡 solar feito, faltam ordens_servico, financeiro, estoque, servicos | Edição confiável por agentes |
 | Inline styles nos templates | 🟡 ~1190 ocorrências | Consistência de patches |
 | Async Views / Background Tasks | 🟡 Pendente | Nada, mas depende da Fase 1 |
-| RBAC (grupos de permissão) | 🟠 Pendente | Implantação em produção |
+| RBAC (grupos de permissão) | ✅ Feito (2026-08-09) | — (era o bloqueador de produção) |
+| Hardening de produção (HTTPS/HSTS/cookies) | ✅ Feito (2026-08-09) | — |
+| PostgreSQL via DATABASE_URL | ✅ Feito (2026-08-09) | — |
+| Backup automático do banco | 🔴 Pendente | **Implantação em produção** |
+| Hospedagem com suporte a Python | 🔴 Pendente | **Implantação em produção** |
 | PDF de propostas | 🔲 Backlog | Independente |
+
+> **Hospedagem:** o plano atual (Hostinger Business Web Hosting) **não roda
+> Django** — a própria Hostinger documenta que Python exige acesso root,
+> disponível só no VPS. Publicar exige VPS ou uma plataforma gerenciada de
+> Python. A landing (`optimus-landing`, PHP estático) continua onde está.
 
 ---
 

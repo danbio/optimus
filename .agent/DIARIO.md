@@ -29,6 +29,7 @@
 
 **Atualizações Recentes:**
 
+- `[2026-08-09]` **Retomada após pausa — preparação para produção.** RBAC implementado (3 grupos, matriz central em `core/permissoes.py` + middleware), settings endurecido (HTTPS/HSTS/cookies sob `DJANGO_ENV=production`) e suporte a PostgreSQL via `DATABASE_URL`. 50 testes passando (38 + 12 novos de RBAC). **Falta para publicar:** backup automático e contratar hospedagem com Python — o plano Hostinger atual não roda Django.
 - `[2026-04-14]` Refatoração da Sidebar: Agrupamento de links técnicos (Módulos, Inversores, etc.) dentro de um dropdown "Componentes" para reduzir poluição visual no app Solar. Implementado via CSS puro (acordeão de 2º nível).
 
 **Stack:** Python 3.13 · Django 6.0.3 · CSS puro (intelbras.css) · HTMX · SQLite (dev)

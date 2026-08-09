@@ -163,8 +163,25 @@ Nenhum commit deve ser feito com falhas nesses 4 passos.
 | 🔴 Alta | Testes em clientes, servicos, financeiro, pos_venda | Sem cobertura |
 | 🟡 Média | Quebrar views >300 linhas em subpacotes | solar já quebrado |
 | 🟡 Média | Reduzir inline styles nos templates | ~1190 ocorrências |
-| 🟠 Baixa | RBAC (permissões por grupo) | Pendente |
+| ✅ Feito | RBAC (permissões por grupo) | `core/permissoes.py` + middleware |
 | 🟠 Baixa | Async views para dashboards | Depende de type hints |
+
+### RBAC — como funciona
+
+Três grupos: **Administrador**, **Vendedor**, **Técnico** (`python manage.py seed_grupos`).
+
+O controle é **centralizado**, não espalhado por views: a matriz vive em
+`core/permissoes.py` e é aplicada por `core/middleware.py`, que identifica o
+módulo pelo *namespace* da URL. Para mudar quem acessa o quê, edite só a matriz
+— nenhuma view precisa ser tocada. Views seguem responsáveis apenas por exigir
+login (`LoginRequiredMixin` / `@login_required`).
+
+Pontos de atenção:
+- Usuário **sem grupo não acessa nada** (exceto dashboard/login). Ao criar
+  usuário no admin, vincular o grupo — senão ele vê 403 em tudo.
+- **Superusuário ignora a matriz**: é a conta de resgate.
+- Testes que exercitam regra de negócio (não permissão) precisam colocar o
+  usuário em um grupo, senão tomam 403. Ver `balcao/tests.py` como exemplo.
 
 ---
 

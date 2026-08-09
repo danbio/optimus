@@ -1,12 +1,14 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from clientes.models import Cliente
+from core.permissoes import GRUPO_ADMIN
 from servicos.models import PropostaServico
 
 from .models import OrdemServico, Tecnico
@@ -15,6 +17,10 @@ from .models import OrdemServico, Tecnico
 class OrdemServicoRegraNegocioTests(TestCase):
     def setUp(self):
         self.usuario = get_user_model().objects.create_user(username="tester", password="senha123")
+        # Estes testes verificam regra de negócio, não permissão: o usuário
+        # recebe acesso total para não esbarrar no RBAC. A matriz de acesso é
+        # testada em core/tests.py.
+        self.usuario.groups.add(Group.objects.get_or_create(name=GRUPO_ADMIN)[0])
         self.client.force_login(self.usuario)
 
         self.cliente_a = Cliente.objects.create(cpf_cnpj="11111111111", nome="Cliente A")

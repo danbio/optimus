@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Acesso negado{% endblock %}
+
+{% block content %}
+<div class="alerta alerta-erro">
+  <strong>Acesso negado.</strong>
+  Seu usuário não tem permissão para abrir esta parte do sistema.
+</div>
+
+<p>
+  Se você precisa acessar esta área, peça ao administrador para incluir seu
+  usuário no grupo correspondente.
+</p>
+
+<p>
+  <a href="{% url 'dashboard' %}" class="btn-primary">Voltar ao painel</a>
+</p>
+{% endblock %}

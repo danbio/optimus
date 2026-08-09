@@ -1,9 +1,11 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.urls import reverse
 
+from core.permissoes import GRUPO_ADMIN
 from estoque.models import Produto
 
 from .models import ItemVenda, Venda
@@ -12,6 +14,10 @@ from .models import ItemVenda, Venda
 class FinalizacaoVendaEstoqueTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="operador", password="senha123")
+        # Estes testes verificam regra de negócio, não permissão: o usuário
+        # recebe acesso total para não esbarrar no RBAC. A matriz de acesso é
+        # testada em core/tests.py.
+        self.user.groups.add(Group.objects.get_or_create(name=GRUPO_ADMIN)[0])
         self.client.force_login(self.user)
 
     def test_finalizar_venda_baixa_estoque(self):
