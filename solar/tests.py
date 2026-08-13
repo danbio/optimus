@@ -4,10 +4,12 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.admin.sites import AdminSite
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.test import RequestFactory, TestCase
+from django.urls import reverse
 
 from clientes.models import Cliente
+from core.permissoes import GRUPO_ADMIN
 
 from .admin import PrecoEquipamentoSolarAdmin
 from .models import (
@@ -404,3 +406,109 @@ class AdminAutoFechaPrecoAnteriorMateriaisTest(TestCase):
 
         preco_antigo.refresh_from_db()
         self.assertEqual(preco_antigo.vigente_ate, date.today())
+
+
+class DimensionamentoConectadoAosItensTests(TestCase):
+    """Regressão do bug: PropostaSolarForm não incluía o campo `modulo`, então
+    o dropdown "Módulo de referência" renderizava vazio (label sem <select>),
+    o botão Calcular nunca enviava o módulo escolhido, e o preview travava
+    sempre em "selecione o módulo". Cobre a correção + a conexão nova entre
+    calculadora e tabela de itens (botão "Usar este dimensionamento")."""
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.modulo = _modulo()  # 400 Wp, ver helper no topo do arquivo
+        cls.user = User.objects.create_user(username="vend_solar", password="senha-de-teste")
+        cls.user.groups.add(Group.objects.get_or_create(name=GRUPO_ADMIN)[0])
+
+    def setUp(self) -> None:
+        self.client.force_login(self.user)
+
+    def test_form_de_proposta_inclui_campo_modulo(self) -> None:
+        from .forms import PropostaSolarForm
+
+        self.assertIn("modulo", PropostaSolarForm.Meta.fields)
+
+    def test_tela_de_nova_proposta_renderiza_o_select_de_modulo(self) -> None:
+        resposta = self.client.get(reverse("solar:nova"))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn('id="id_modulo"', corpo)
+        self.assertIn(f'value="{self.modulo.pk}"', corpo)
+
+    def test_dimensionar_com_modulo_calcula_quantidade_sugerida(self) -> None:
+        resposta = self.client.get(
+            reverse("solar:dimensionar"),
+            {"consumo_medio_kwh": "500", "hsp": "5.5", "fator_eficiencia": "0.75", "modulo": self.modulo.pk},
+        )
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("unidades", corpo)
+        self.assertIn("Usar este dimensionamento", corpo)
+
+    def test_dimensionar_sem_modulo_nao_calcula_quantidade(self) -> None:
+        """Sem módulo selecionado, só dá pra saber o kWp necessário — não tem
+        como sugerir quantidade (depende da potência do módulo)."""
+        resposta = self.client.get(
+            reverse("solar:dimensionar"),
+            {"consumo_medio_kwh": "500", "hsp": "5.5", "fator_eficiencia": "0.75"},
+        )
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertNotIn("unidades", corpo)
+        self.assertIn("Selecione o módulo", corpo)
+
+    def test_usar_dimensionamento_preenche_item_com_modulo_e_quantidade(self) -> None:
+        resposta = self.client.get(
+            reverse("solar:adicionar_item"),
+            {"index": "0", "modulo": self.modulo.pk, "quantidade": "13"},
+        )
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('value="13"', corpo)
+        self.assertIn(f'<option value="{self.modulo.pk}" selected>', corpo)
+        self.assertIn('combo-modulo" style="display: block', corpo)
+
+    def test_adicionar_item_sem_parametros_continua_vazio(self) -> None:
+        """O botão manual "Adicionar Item" não deve ganhar pré-preenchimento
+        por acidente. O "selected" na opção vazia é comportamento padrão do
+        Django em <select> sem valor — o que não pode aparecer é o módulo
+        marcado, nem quantidade diferente do default (1)."""
+        resposta = self.client.get(reverse("solar:adicionar_item"), {"index": "0"})
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertNotIn(f'value="{self.modulo.pk}" selected', corpo)
+        self.assertIn('name="itens-0-quantidade" value="1"', corpo)
+        self.assertIn('combo-modulo" style="display: none', corpo)
+
+    def test_criar_proposta_com_item_de_modulo_grava_modulo_e_quantidade(self) -> None:
+        """Fim a fim: submete o form como o formulário real envia (dimensionamento
+        + 1 item de módulo) e confirma que a proposta grava potencia_kwp,
+        modulo e quantidade_modulos corretamente."""
+        cliente = _cliente()
+        dados = {
+            "cliente": cliente.pk,
+            "consumo_medio_kwh": "500",
+            "modulo": self.modulo.pk,
+            "hsp": "5.5",
+            "fator_eficiencia": "0.75",
+            "valor_instalacao": "0",
+            "validade": (date.today() + timedelta(days=30)).isoformat(),
+            "observacoes": "",
+            "itens-TOTAL_FORMS": "1",
+            "itens-INITIAL_FORMS": "0",
+            "itens-MIN_NUM_FORMS": "1",
+            "itens-MAX_NUM_FORMS": "1000",
+            "itens-0-modulo": self.modulo.pk,
+            "itens-0-quantidade": "13",
+        }
+
+        resposta = self.client.post(reverse("solar:nova"), dados)
+
+        self.assertEqual(resposta.status_code, 302, resposta.context["formset"].errors if resposta.status_code == 200 else "")
+        proposta = PropostaSolar.objects.latest("criado_em")
+        self.assertEqual(proposta.modulo_id, self.modulo.pk)
+        self.assertEqual(proposta.quantidade_modulos, 13)
+        self.assertGreater(proposta.potencia_kwp, 0)

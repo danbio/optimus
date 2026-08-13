@@ -20,7 +20,8 @@
 | Backup do banco (`backup_db`) | ✅ Feito (2026-08-09) | — (falta agendar execução em produção) |
 | Mojibake em 24 produtos do estoque | 🔴 Pendente | Nada, mas os nomes aparecem errados na tela |
 | Hospedagem com suporte a Python | 🔴 Pendente | **Implantação em produção** |
-| PDF de propostas | 🔲 Backlog | Independente |
+| PDF de propostas | 🔲 Backlog | Independente — nenhum jeito de gerar/enviar a proposta pro cliente hoje |
+| Sugestão automática de inversor compatível | 🔲 Backlog | Escolha do inversor é 100% manual, sem checar potência/fase/tensão |
 
 > **Hospedagem:** o plano atual (Hostinger Business Web Hosting) **não roda
 > Django** — a própria Hostinger documenta que Python exige acesso root,

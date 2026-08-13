@@ -11,6 +11,7 @@ class PropostaSolarForm(forms.ModelForm):
         fields = [
             "cliente",
             "consumo_medio_kwh",
+            "modulo",
             "hsp",
             "fator_eficiencia",
             "valor_instalacao",
@@ -25,6 +26,11 @@ class PropostaSolarForm(forms.ModelForm):
             field.widget.attrs["autocomplete"] = "off"
 
         self.fields["consumo_medio_kwh"].widget.attrs.update({"placeholder": "Ex: 350", "inputmode": "decimal", "step": "0.01"})
+        # "Módulo de referência" alimenta só a calculadora de dimensionamento
+        # (endpoint solar:dimensionar via HTMX) — o módulo que efetivamente
+        # entra na proposta é o que está na tabela de Itens; se houver um item
+        # de categoria Módulo lá, ele tem prioridade sobre este campo no save.
+        self.fields["modulo"].queryset = ModuloFotovoltaico.objects.filter(ativo=True)
         self.fields["hsp"].widget.attrs.update({"placeholder": "5.50", "inputmode": "decimal", "step": "0.01"})
         self.fields["fator_eficiencia"].widget.attrs.update({"placeholder": "0.75", "inputmode": "decimal", "step": "0.01"})
 

@@ -243,9 +243,22 @@ def dimensionar(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def adicionar_item_solar(request: HttpRequest) -> HttpResponse:
-    """Endpoint HTMX para adicionar uma linha vazia ao formset."""
+    """Endpoint HTMX para adicionar uma linha ao formset.
+
+    Sem parâmetros: linha vazia (botão "Adicionar Item"). Com `modulo` e
+    `quantidade`: linha pré-preenchida com o resultado do dimensionamento
+    (botão "Usar este dimensionamento" no preview) — evita que o vendedor
+    calcule a sugestão e depois tenha que digitá-la de novo na tabela.
+    """
     index = request.GET.get("index", "0")
-    form = ItemPropostaSolarForm(prefix=f"itens-{index}")
+    initial = {}
+    modulo_id = request.GET.get("modulo")
+    quantidade = request.GET.get("quantidade")
+    if modulo_id:
+        initial["modulo"] = modulo_id
+    if quantidade:
+        initial["quantidade"] = quantidade
+    form = ItemPropostaSolarForm(prefix=f"itens-{index}", initial=initial or None)
     return render(
         request,
         "solar/_item_proposta_row.html",
