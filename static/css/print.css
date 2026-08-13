@@ -1,0 +1,115 @@
+/* ================================================
+   Documentos imprimíveis (propostas etc.)
+   Layout A4, sem topbar/sidebar — ver templates/base_print.html
+   ================================================ */
+
+@page {
+  size: A4;
+  margin: 1.8cm;
+}
+
+body {
+  background: #fff;
+  color: #111;
+  max-width: 21cm;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* Barra "Imprimir / Fechar" — só aparece na tela, nunca no papel */
+.print-toolbar {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+.print-toolbar button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--borda-fraca);
+  background: var(--fundo-card);
+  cursor: pointer;
+  font-size: 14px;
+}
+.print-toolbar button:first-child {
+  background: var(--verde);
+  color: #fff;
+  border-color: var(--verde);
+}
+
+.doc-cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  border-bottom: 3px solid var(--verde);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+.doc-cabecalho h1 {
+  margin: 0;
+  color: var(--verde);
+  font-size: 22px;
+}
+.doc-cabecalho .empresa-dados {
+  font-size: 12px;
+  color: var(--texto-corpo);
+  line-height: 1.5;
+  text-align: right;
+}
+
+.doc-secao {
+  margin-bottom: 20px;
+}
+.doc-secao h2 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--texto-titulo);
+  border-bottom: 1px solid var(--borda-fraca);
+  padding-bottom: 6px;
+  margin: 0 0 10px;
+}
+
+.doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+}
+.doc-grid .item .rotulo {
+  font-size: 11px;
+  color: var(--texto-corpo);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.doc-grid .item .valor {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--texto-titulo);
+}
+
+.doc-assinaturas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin-top: 60px;
+}
+.doc-assinaturas .linha {
+  border-top: 1px solid #111;
+  padding-top: 6px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.doc-rodape {
+  margin-top: 24px;
+  font-size: 11px;
+  color: var(--texto-corpo);
+  text-align: center;
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { padding: 0; }
+  .doc-secao, .doc-cabecalho { break-inside: avoid; }
+}

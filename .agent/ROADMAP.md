@@ -20,7 +20,7 @@
 | Backup do banco (`backup_db`) | ✅ Feito (2026-08-09) | — (falta agendar execução em produção) |
 | Mojibake em 24 produtos do estoque | 🔴 Pendente | Nada, mas os nomes aparecem errados na tela |
 | Hospedagem com suporte a Python | 🔴 Pendente | **Implantação em produção** |
-| PDF de propostas | 🔲 Backlog | Independente — nenhum jeito de gerar/enviar a proposta pro cliente hoje |
+| PDF de propostas | ✅ Feito (2026-08-13) | `@media print` + `window.print()`, sem lib externa — ver skill solar-domain §12 |
 | Sugestão automática de inversor compatível | ✅ Feito (2026-08-13) | Relação CC:CA, faixa configurável em `/configuracoes/` — ver skill solar-domain §2.1 |
 
 > **Hospedagem:** o plano atual (Hostinger Business Web Hosting) **não roda

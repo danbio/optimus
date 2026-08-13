@@ -623,3 +623,95 @@ class DimensionarComInversorSugeridoTests(TestCase):
         self.assertEqual(resposta.status_code, 200)
         self.assertIn(f'<option value="{self.inversor.pk}" selected>', corpo)
         self.assertIn('combo-inversor" style="display: block', corpo)
+
+
+# ---------------------------------------------------------------------------
+# Impressão / PDF da proposta (etapa 5 do fluxo)
+# ---------------------------------------------------------------------------
+
+
+class PropostaPrintTests(TestCase):
+    """window.print() do navegador é o "gerador de PDF" — sem biblioteca
+    externa. Ver .claude/skills/solar-domain.md §12."""
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.modulo = _modulo()
+        cls.inversor = _inversor()
+        cls.estrutura = _estrutura()
+        # _proposta() só grava o módulo de referência (FK direta) — os itens
+        # da tabela de equipamentos precisam ser criados à parte, senão o
+        # teste só exercita o caminho "proposta vazia" do template.
+        cls.proposta = _proposta(cls.modulo)
+        ItemPropostaSolar.objects.create(
+            proposta=cls.proposta, modulo=cls.modulo, quantidade=10,
+            preco_venda_snapshot=Decimal("600"), preco_custo_snapshot=Decimal("500"),
+            data_referencia_preco=date.today(),
+        )
+        ItemPropostaSolar.objects.create(
+            proposta=cls.proposta, inversor=cls.inversor, quantidade=1,
+            preco_venda_snapshot=Decimal("4000"), preco_custo_snapshot=Decimal("3000"),
+            data_referencia_preco=date.today(),
+        )
+        cls.user = User.objects.create_user(username="vend_print", password="senha-de-teste")
+        cls.user.groups.add(Group.objects.get_or_create(name=GRUPO_ADMIN)[0])
+
+    def setUp(self) -> None:
+        self.client.force_login(self.user)
+
+    def test_pagina_de_impressao_carrega(self) -> None:
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+
+        self.assertEqual(resposta.status_code, 200)
+
+    def test_nao_usa_o_layout_com_menu_lateral(self) -> None:
+        """A página de impressão precisa ficar fora do base.html normal —
+        imprimir a barra lateral e o menu junto com a proposta seria um
+        documento inutilizável pro cliente."""
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertNotIn('class="sidebar"', corpo)
+        self.assertNotIn('class="topbar"', corpo)
+        self.assertNotIn("htmx.org", corpo)
+
+    def test_mostra_numero_cliente_e_total(self) -> None:
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn(self.proposta.numero, corpo)
+        self.assertIn(self.proposta.cliente.nome, corpo)
+        self.assertIn("Total", corpo)
+
+    def test_tabela_de_equipamentos_lista_os_itens_com_subtotal(self) -> None:
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn(self.modulo.modelo, corpo)
+        self.assertIn(self.inversor.modelo, corpo)
+        self.assertIn("R$ 6000,00", corpo)  # módulo: 10 × 600
+        self.assertIn("R$ 4000,00", corpo)  # inversor: 1 × 4000
+
+    def test_proposta_inexistente_retorna_404(self) -> None:
+        resposta = self.client.get(reverse("solar:imprimir", args=[99999]))
+
+        self.assertEqual(resposta.status_code, 404)
+
+    def test_vendedor_tambem_acessa_impressao(self) -> None:
+        """Impressão segue o mesmo nível de acesso do resto do app solar
+        (Administrador + Vendedor) — não é uma tela mais restrita."""
+        from core.permissoes import GRUPO_VENDEDOR
+
+        vendedor = User.objects.create_user(username="vend_print2", password="senha-de-teste")
+        vendedor.groups.add(Group.objects.get_or_create(name=GRUPO_VENDEDOR)[0])
+        self.client.force_login(vendedor)
+
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+
+        self.assertEqual(resposta.status_code, 200)
+
+    def test_link_imprimir_aparece_na_tela_de_detalhe(self) -> None:
+        resposta = self.client.get(reverse("solar:detalhe", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn(reverse("solar:imprimir", args=[self.proposta.pk]), corpo)

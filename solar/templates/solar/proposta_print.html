@@ -1,0 +1,146 @@
+{% extends "base_print.html" %}
+{% block title %}Proposta {{ proposta.numero }}{% endblock %}
+
+{% block content %}
+<div class="doc-cabecalho">
+  <div>
+    <h1>Proposta Comercial — Energia Solar</h1>
+    <div style="font-size: 13px; color: var(--texto-corpo); margin-top: 4px;">
+      Nº {{ proposta.numero }} · Emitida em {{ proposta.criado_em|date:"d/m/Y" }} · Válida até {{ proposta.validade|date:"d/m/Y" }}
+    </div>
+  </div>
+  <div class="empresa-dados">
+    <strong style="color: var(--verde); font-size: 15px;">Optimus Energia Solar</strong><br>
+    Optimus Empreendimentos Ltda · CNPJ 43.324.626/0001-66<br>
+    Rua S-015, 178, Parque Sol Nascente — Gurupi/TO<br>
+    (63) 3301-0717
+  </div>
+</div>
+
+<div class="doc-secao">
+  <h2>Cliente</h2>
+  <div style="font-size: 15px; font-weight: 700;">{{ proposta.cliente.nome }}</div>
+  <div style="font-size: 13px; color: var(--texto-corpo);">
+    {{ proposta.cliente.cpf_cnpj }}{% if proposta.cliente.telefone_principal %} · {{ proposta.cliente.telefone_principal }}{% endif %}{% if proposta.cliente.email %} · {{ proposta.cliente.email }}{% endif %}
+  </div>
+  {% if proposta.cliente.endereco_resumido %}
+  <div style="font-size: 13px; color: var(--texto-corpo);">{{ proposta.cliente.endereco_resumido }}</div>
+  {% endif %}
+</div>
+
+<div class="doc-secao">
+  <h2>Sumário técnico</h2>
+  <div class="doc-grid">
+    <div class="item">
+      <div class="rotulo">Consumo médio</div>
+      <div class="valor">{{ proposta.consumo_medio_kwh }} kWh/mês</div>
+    </div>
+    <div class="item">
+      <div class="rotulo">Potência do sistema</div>
+      <div class="valor">{{ proposta.potencia_real_kwp }} kWp</div>
+    </div>
+    <div class="item">
+      <div class="rotulo">Módulos</div>
+      <div class="valor">{{ proposta.quantidade_modulos }}{% if proposta.modulo %} × {{ proposta.modulo.potencia_wp }}Wp{% endif %}</div>
+    </div>
+    <div class="item">
+      <div class="rotulo">Área aproximada</div>
+      <div class="valor">{{ proposta.area_total_m2 }} m²</div>
+    </div>
+    {% if geracao_mensal_kwh %}
+    <div class="item">
+      <div class="rotulo">Geração estimada</div>
+      <div class="valor">{{ geracao_mensal_kwh }} kWh/mês</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="doc-secao">
+  <h2>Equipamentos</h2>
+  <table class="tabela">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Especificação</th>
+        <th style="text-align: center;">Qtd.</th>
+        <th style="text-align: right;">Vlr. unit.</th>
+        <th style="text-align: right;">Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in itens %}
+      <tr>
+        <td>
+          {% if item.modulo %}Módulo{% elif item.inversor %}Inversor{% elif item.estrutura %}Estrutura{% else %}Material{% endif %}
+        </td>
+        <td>
+          {% if item.modulo %}
+            {{ item.modulo }}
+            <div style="font-size: 11px; color: var(--texto-corpo);">
+              {{ item.modulo.potencia_wp }}Wp · Efic. {{ item.modulo.eficiencia }}% · Garantia {{ item.modulo.garantia_produto }}/{{ item.modulo.garantia_desempenho }} anos
+            </div>
+          {% elif item.inversor %}
+            {{ item.inversor }}
+            <div style="font-size: 11px; color: var(--texto-corpo);">
+              {{ item.inversor.potencia_kw }}kW · {{ item.inversor.get_tipo_display }} · {{ item.inversor.get_fase_display }} · Garantia {{ item.inversor.garantia }} anos
+            </div>
+          {% elif item.estrutura %}
+            {{ item.estrutura }}
+            <div style="font-size: 11px; color: var(--texto-corpo);">{{ item.estrutura.get_tipo_display }} · {{ item.estrutura.get_material_display }}</div>
+          {% else %}
+            {{ item.material }}
+          {% endif %}
+        </td>
+        <td style="text-align: center;">{{ item.quantidade }}</td>
+        <td style="text-align: right;">R$ {{ item.preco_venda_snapshot|floatformat:2 }}</td>
+        <td style="text-align: right;">R$ {{ item.subtotal|floatformat:2 }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="text-align: center; color: var(--texto-corpo);">Nenhum equipamento nesta proposta.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="doc-secao">
+  <h2>Investimento</h2>
+  <table class="tabela" style="max-width: 380px;">
+    <tbody>
+      <tr><td>Equipamentos</td><td style="text-align: right;">R$ {{ proposta.valor_equipamentos|floatformat:2 }}</td></tr>
+      <tr><td>Instalação e mão de obra</td><td style="text-align: right;">R$ {{ proposta.valor_instalacao|floatformat:2 }}</td></tr>
+    </tbody>
+    <tfoot>
+      <tr style="background: var(--fundo-alt);">
+        <td style="font-weight: 700;">Total</td>
+        <td style="text-align: right; font-weight: 700; font-size: 16px; color: var(--verde);">R$ {{ proposta.valor_total|floatformat:2 }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+{% if proposta.observacoes %}
+<div class="doc-secao">
+  <h2>Condições e observações</h2>
+  <div style="font-size: 13px;">{{ proposta.observacoes|linebreaks }}</div>
+</div>
+{% endif %}
+
+<div class="doc-secao">
+  <h2>Condições gerais</h2>
+  <div style="font-size: 12px; color: var(--texto-corpo);">
+    Proposta válida até {{ proposta.validade|date:"d/m/Y" }}. Valores sujeitos a confirmação de
+    disponibilidade em estoque e condições técnicas de instalação verificadas em visita ao local.
+    Homologação junto à distribuidora local não inclusa no prazo de instalação.
+  </div>
+</div>
+
+<div class="doc-assinaturas">
+  <div class="linha">{{ proposta.cliente.nome }}<br>Cliente</div>
+  <div class="linha">Optimus Energia Solar</div>
+</div>
+
+<div class="doc-rodape">
+  Optimus Empreendimentos Ltda · CNPJ 43.324.626/0001-66 · (63) 3301-0717
+</div>
+{% endblock %}

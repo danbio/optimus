@@ -35,6 +35,9 @@
       <button type="submit" class="btn-secondary"><i class="bi bi-arrow-counterclockwise"></i> Reabrir</button>
     </form>
     {% endif %}
+    <a href="{% url 'solar:imprimir' proposta.pk %}" class="btn-secondary" target="_blank" rel="noopener">
+      <i class="bi bi-printer"></i> Imprimir / PDF
+    </a>
     <a href="{% url 'solar:editar' proposta.pk %}" class="btn-primary">
       <i class="bi bi-pencil"></i> Editar
     </a>

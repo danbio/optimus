@@ -465,35 +465,45 @@ observacoes_homologacao   # TextField
 
 ---
 
-## 12. PDF de proposta — abordagem planejada
+## 12. PDF de proposta — implementado (2026-08-13)
 
-Conforme ROADMAP (Fase 3), a abordagem é **CSS `@media print` + `window.print()`** sem bibliotecas externas.
-
-**Padrão a seguir quando implementado:**
+`GET /solar/<pk>/imprimir/` — `solar/views/propostas.py::proposta_print`. CSS
+`@media print` + `window.print()` do navegador ("Salvar como PDF" nativo),
+sem biblioteca externa, exatamente como planejado.
 
 ```html
 <!-- solar/templates/solar/proposta_print.html -->
 {% extends "base_print.html" %}
-<!-- base_print.html: sem topbar/sidebar, só conteúdo -->
+<!-- templates/base_print.html: sem topbar/sidebar/htmx, só o conteúdo.
+     Carrega intelbras.css (reaproveita cores/.tabela) + static/css/print.css
+     (layout A4, .doc-cabecalho, .doc-secao, .doc-grid, .doc-assinaturas). -->
 ```
 
-```css
-/* static/css/print.css */
-@media print {
-    .topbar, .sidebar, .btn-acao { display: none; }
-    .proposta-pdf { page-break-inside: avoid; }
-    @page { size: A4; margin: 2cm; }
-}
-```
+Botão "Imprimir / PDF" em `proposta_detail.html` abre em nova aba
+(`target="_blank"`). Acesso: mesmo nível do resto do app `solar`
+(Administrador + Vendedor via RBAC) — não é restrito.
 
-**Estrutura sugerida do PDF:**
+**Estrutura implementada:**
 
-1. Cabeçalho: logo empresa, dados do cliente, número/data da proposta
-2. Sumário técnico: kWp, módulos, inversor, área, geração estimada
-3. Tabela de equipamentos: modelo, qtd, preço unitário, subtotal
-4. Análise financeira: investimento total, economia mensal, payback, economia em 25 anos
-5. Validade e condições gerais
-6. Espaço para assinatura
+1. Cabeçalho: nome/CNPJ/endereço da Optimus (hardcoded no template — não é
+   parâmetro de `Configuracao`; é dado de registro da empresa, não regra de
+   negócio), número/data/validade da proposta
+2. Dados do cliente (`endereco_resumido`, `telefone_principal` — properties
+   já existentes em `clientes.Cliente`)
+3. Sumário técnico: kWp real, módulos, área, **geração mensal estimada**
+   (kWp × HSP × 30 × fator_eficiencia — calculada na view)
+4. Tabela de equipamentos: item, especificação (com garantia inline pra
+   módulo/inversor), qtd, preço unitário, subtotal
+5. Investimento: equipamentos + instalação = total
+6. Validade e condições gerais + espaço para assinatura
+
+**Decisão deliberada — sem payback nem economia em R$:** calcular isso
+exigiria uma tarifa (R$/kWh), e **nem `Cliente` nem `PropostaSolar` têm esse
+campo hoje**. Inventar uma tarifa média pra mostrar economia estimada seria
+apresentar uma promessa financeira sem dado real por trás — risco comercial
+real, não só imprecisão técnica. Se for adicionar isso no futuro, precisa
+vir com um campo de tarifa de verdade (por proposta ou por cliente), não um
+valor chutado no template.
 
 ---
 

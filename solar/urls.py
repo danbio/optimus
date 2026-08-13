@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.PropostaSolarListView.as_view(), name="lista"),
     path("nova/", views.PropostaSolarCreateView.as_view(), name="nova"),
     path("<int:pk>/", views.PropostaSolarDetailView.as_view(), name="detalhe"),
+    path("<int:pk>/imprimir/", views.proposta_print, name="imprimir"),
     path("<int:pk>/editar/", views.PropostaSolarUpdateView.as_view(), name="editar"),
     path("<int:pk>/excluir/", views.PropostaSolarDeleteView.as_view(), name="excluir"),
     # Transições de status

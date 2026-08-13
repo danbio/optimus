@@ -187,6 +187,42 @@ class PropostaSolarDetailView(LoginRequiredMixin, DetailView):
         return super().get_queryset().select_related("cliente").prefetch_related("ordens_servico__tecnico")
 
 
+@login_required
+def proposta_print(request: HttpRequest, pk: int) -> HttpResponse:
+    """Versão para impressão/PDF da proposta — layout A4, sem topbar/sidebar
+    (ver templates/base_print.html). O botão "Imprimir" chama window.print()
+    do navegador; "gerar PDF" é a opção nativa "Salvar como PDF" da caixa de
+    impressão. Sem biblioteca externa — abordagem documentada em
+    .claude/skills/solar-domain.md §12.
+    """
+    proposta = get_object_or_404(
+        PropostaSolar.objects.select_related("cliente"),
+        pk=pk,
+    )
+    itens = proposta.itens.select_related("modulo", "inversor", "estrutura", "material")
+
+    # Geração mensal estimada — é uma projeção técnica (kWp × HSP × dias ×
+    # fator), não uma promessa financeira. Não calculamos payback/economia em
+    # R$ aqui de propósito: exigiria uma tarifa (R$/kWh), e nem Cliente nem
+    # PropostaSolar têm esse campo hoje — inventar um número herdaria risco
+    # comercial (prometer economia sem dado real por trás).
+    geracao_mensal_kwh = None
+    if proposta.potencia_real_kwp:
+        geracao_mensal_kwh = round(
+            float(proposta.potencia_real_kwp) * float(proposta.hsp) * 30 * float(proposta.fator_eficiencia)
+        )
+
+    return render(
+        request,
+        "solar/proposta_print.html",
+        {
+            "proposta": proposta,
+            "itens": itens,
+            "geracao_mensal_kwh": geracao_mensal_kwh,
+        },
+    )
+
+
 class PropostaSolarDeleteView(LoginRequiredMixin, DeleteView):
     model = PropostaSolar
     template_name = "solar/proposta_confirm_delete.html"

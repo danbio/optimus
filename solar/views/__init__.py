@@ -39,5 +39,6 @@ from .propostas import (  # noqa: F401
     cancelar_proposta,
     dimensionar,
     enviar_proposta,
+    proposta_print,
     reabrir_proposta,
 )

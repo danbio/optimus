@@ -71,7 +71,7 @@ Optimus/
 ├── AGENTS.md            ← este arquivo (SSOT para agentes)
 ├── config/              settings.py, urls.py, wsgi.py
 ├── core/                BaseModel abstrato
-├── templates/           base.html global
+├── templates/           base.html (ERP normal) + base_print.html (documentos A4)
 ├── static/css/          intelbras.css
 ├── <app>/               cada app na raiz (não em apps/<app>/)
 │   ├── models.py
@@ -184,6 +184,19 @@ grupo em `core/permissoes.py`, escondê-lo também da navegação com
 bloqueia o acesso, mas se o link continuar visível pra quem não pode entrar, a
 pessoa clica e só descobre no 403. Já aconteceu 2x (menu Financeiro e o card
 de KPI do dashboard) por eu ter esquecido isso ao implementar o RBAC.
+
+### Documentos imprimíveis (PDF)
+
+`templates/base_print.html` — skeleton A4 sem topbar/sidebar/htmx, com botão
+"Imprimir / Salvar como PDF" (`window.print()` do navegador — sem lib
+externa). `static/css/print.css` define `@page`, `.doc-cabecalho`,
+`.doc-secao`, `.doc-grid`, `.doc-assinaturas`. Primeiro uso:
+`solar/templates/solar/proposta_print.html` (`/solar/<pk>/imprimir/`).
+
+Para uma nova tela de impressão (recibo de venda balcão, OS, etc.):
+`{% extends "base_print.html" %}` + reaproveitar as classes `.doc-*` do
+print.css. Não copiar o layout de `base.html` (`.topbar`/`.sidebar`/`.main`)
+para um documento — é pra sair impresso, não para navegar no sistema.
 
 ### Backup
 
