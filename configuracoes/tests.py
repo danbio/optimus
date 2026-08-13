@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth.models import Group, User
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -15,6 +16,15 @@ class ConfiguracaoSingletonTests(TestCase):
         config = Configuracao.atual()
         self.assertEqual(config.pk, 1)
         self.assertEqual(config.desconto_maximo_balcao_pct, Decimal("20.00"))
+        self.assertEqual(config.inversor_sobrecarga_minima_pct, Decimal("80.00"))
+        self.assertEqual(config.inversor_sobrecarga_maxima_pct, Decimal("135.00"))
+
+    def test_faixa_de_inversor_minima_maior_que_maxima_e_invalida(self) -> None:
+        config = Configuracao.atual()
+        config.inversor_sobrecarga_minima_pct = Decimal("150.00")
+        config.inversor_sobrecarga_maxima_pct = Decimal("100.00")
+        with self.assertRaises(ValidationError):
+            config.full_clean()
 
     def test_atual_sempre_retorna_a_mesma_linha(self) -> None:
         primeira = Configuracao.atual()
@@ -57,7 +67,12 @@ class ConfiguracaoAcessoTests(TestCase):
         self.client.force_login(user)
 
         resposta = self.client.post(
-            reverse("configuracoes:editar"), {"desconto_maximo_balcao_pct": "12.50"}
+            reverse("configuracoes:editar"),
+            {
+                "desconto_maximo_balcao_pct": "12.50",
+                "inversor_sobrecarga_minima_pct": "80.00",
+                "inversor_sobrecarga_maxima_pct": "135.00",
+            },
         )
 
         self.assertRedirects(resposta, reverse("configuracoes:editar"))

@@ -34,6 +34,42 @@
     </div>
   </div>
 
+  <div class="card">
+    <div class="card-header"><i class="bi bi-sun"></i> Solar — compatibilidade de inversor</div>
+    <div class="card-body">
+      <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <div class="form-group" style="max-width: 220px;">
+          <label for="id_inversor_sobrecarga_minima_pct">
+            Relação CC:CA mínima (%)
+          </label>
+          {{ form.inversor_sobrecarga_minima_pct }}
+          {% if form.inversor_sobrecarga_minima_pct.errors %}
+            <div class="form-error">
+              {% for e in form.inversor_sobrecarga_minima_pct.errors %}{{ e }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        <div class="form-group" style="max-width: 220px;">
+          <label for="id_inversor_sobrecarga_maxima_pct">
+            Relação CC:CA máxima (%)
+          </label>
+          {{ form.inversor_sobrecarga_maxima_pct }}
+          {% if form.inversor_sobrecarga_maxima_pct.errors %}
+            <div class="form-error">
+              {% for e in form.inversor_sobrecarga_maxima_pct.errors %}{{ e }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      <small style="color: var(--texto-corpo);">
+        {{ form.inversor_sobrecarga_maxima_pct.help_text }}
+        Usado na proposta solar pra marcar quais inversores cadastrados
+        combinam com o dimensionamento (potência do sistema ÷ potência do
+        inversor, em %).
+      </small>
+    </div>
+  </div>
+
   <button type="submit" class="btn-primary">
     <i class="bi bi-check-circle"></i> Salvar
   </button>

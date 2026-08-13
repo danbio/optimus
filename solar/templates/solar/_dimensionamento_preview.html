@@ -1,3 +1,4 @@
+{% load core_extras %}
 {% if kwp_necessario %}
 <div class="dimensionamento-preview">
   <div class="preview-titulo"><i class="bi bi-lightning-charge-fill"></i> Resultado do dimensionamento</div>
@@ -42,6 +43,39 @@
   <div style="font-size: 12px; color: var(--texto-corpo); margin-top: 6px;">
     Adiciona {{ qtd_sugerida }} × {{ modulo }} na lista de itens abaixo — pode ajustar depois.
   </div>
+
+  {% if inversores %}
+  <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--borda-fraca);">
+    <div class="preview-titulo"><i class="bi bi-hdd-stack-fill"></i> Inversores compatíveis com {{ kwp_real }} kWp</div>
+    <div style="display: grid; gap: 6px; margin-top: 8px;">
+      {% for r in inversores %}
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; background: var(--fundo-card); border: 1px solid var(--borda-fraca); border-radius: 6px;">
+          <div style="font-size: 13px;">
+            {{ r.inversor }}
+            {% if r.compativel %}
+              <span class="badge badge-verde" style="margin-left: 6px;">{{ r.ratio_pct }}%</span>
+            {% else %}
+              <span class="badge badge-alerta" style="margin-left: 6px;" title="Fora da faixa configurada em Configurações">{{ r.ratio_pct }}% ⚠</span>
+            {% endif %}
+          </div>
+          <button type="button" class="btn-secondary btn-sm"
+                  hx-get="{% url 'solar:adicionar_item' %}"
+                  hx-vals='js:{index: document.querySelectorAll(".item-proposta-row").length, inversor: {{ r.inversor.pk }} }'
+                  hx-target="#itens-container"
+                  hx-swap="beforeend">
+            <i class="bi bi-plus-lg"></i> Usar
+          </button>
+        </div>
+      {% endfor %}
+    </div>
+    <div style="font-size: 11px; color: var(--texto-corpo); margin-top: 6px;">
+      % = potência do sistema ÷ potência do inversor.
+      {% if user|in_group:"Administrador" %}
+        Faixa aceita hoje: configurável em <a href="{% url 'configuracoes:editar' %}">Configurações</a>.
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
   {% endif %}
 </div>
 {% endif %}

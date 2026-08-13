@@ -1,6 +1,6 @@
 # Domínio Solar — ERP Optimus (Tocantins/BR)
 
-> ⚠️ Esta skill reflete os models **reais** do app `solar`. Última revisão: 2026-04-18.
+> ⚠️ Esta skill reflete os models **reais** do app `solar`. Última revisão: 2026-08-13.
 
 ---
 
@@ -53,6 +53,36 @@ tensao_max_entrada # IntegerField — V
 quantidade_mppt    # IntegerField
 garantia           # IntegerField — anos
 ativo              # BooleanField
+```
+
+---
+
+### 2.1 Sugestão automática de inversor compatível
+
+`solar/views/_helpers.py::inversores_compativeis(potencia_kwp, faixa_min_pct, faixa_max_pct)`
+
+Regra: relação CC:CA — `potência do sistema (kWp) ÷ potência do inversor
+(kW) × 100`. A faixa aceita **não é constante no código** — vem de
+`Configuracao.atual()` (`inversor_sobrecarga_minima_pct` /
+`_maxima_pct`, padrão 80%–135%, editável em `/configuracoes/`, só
+Administrador). Retorna todos os inversores `ativo=True`, marcados
+`compativel: bool`, ordenados com os compatíveis primeiro e, dentro de
+cada grupo, pelos mais próximos de 100%.
+
+Não valida fase (mono/trifásico) nem string sizing (Voc em série vs.
+`tensao_max_entrada`) — o model `Cliente` não tem campo de fase, e o
+sistema não modela configuração de string. Só a relação de potência.
+
+```python
+from decimal import Decimal
+from configuracoes.models import Configuracao
+from solar.views._helpers import inversores_compativeis
+
+config = Configuracao.atual()
+resultado = inversores_compativeis(
+    Decimal("6.0"), config.inversor_sobrecarga_minima_pct, config.inversor_sobrecarga_maxima_pct
+)
+# [{"inversor": <Inversor>, "ratio_pct": Decimal("120.0"), "compativel": True}, ...]
 ```
 
 ---
@@ -196,11 +226,15 @@ O form de criação/edição usa três endpoints HTMX para interatividade em tem
 GET /solar/dimensionar/
   → Parâmetros: consumo_medio_kwh, hsp, fator_eficiencia, modulo (pk)
   → Retorna: solar/_dimensionamento_preview.html
-  → Mostra: kWp necessário, qtd sugerida, kWp real, área m²
+  → Mostra: kWp necessário, qtd sugerida, kWp real, área m², e a lista de
+    inversores ativos compatíveis com o kWp real (ver seção 2.1 abaixo)
 
 GET /solar/adicionar-item/?index=N
-  → Retorna: solar/_item_proposta_row.html (linha vazia do formset)
-  → Usado pelo botão "+ Adicionar item"
+  → Retorna: solar/_item_proposta_row.html (linha do formset)
+  → Sem parâmetros: linha vazia — botão "+ Adicionar item"
+  → Com modulo=pk / inversor=pk / estrutura=pk / material=pk (+ quantidade
+    opcional): linha pré-preenchida — botões "Usar este dimensionamento" e
+    "Usar este inversor" no preview do dimensionamento
 
 GET /solar/calcular-total/?itens-TOTAL_FORMS=N&itens-0-modulo=pk&itens-0-quantidade=2...
   → Retorna: texto puro "R$ 12.345,67"

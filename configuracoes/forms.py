@@ -6,7 +6,11 @@ from .models import Configuracao
 class ConfiguracaoForm(forms.ModelForm):
     class Meta:
         model = Configuracao
-        fields = ["desconto_maximo_balcao_pct"]
+        fields = [
+            "desconto_maximo_balcao_pct",
+            "inversor_sobrecarga_minima_pct",
+            "inversor_sobrecarga_maxima_pct",
+        ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -16,4 +20,10 @@ class ConfiguracaoForm(forms.ModelForm):
 
         self.fields["desconto_maximo_balcao_pct"].widget.attrs.update(
             {"inputmode": "decimal", "step": "0.01", "min": "0", "max": "100"}
+        )
+        self.fields["inversor_sobrecarga_minima_pct"].widget.attrs.update(
+            {"inputmode": "decimal", "step": "0.01", "min": "0", "max": "500"}
+        )
+        self.fields["inversor_sobrecarga_maxima_pct"].widget.attrs.update(
+            {"inputmode": "decimal", "step": "0.01", "min": "0", "max": "500"}
         )

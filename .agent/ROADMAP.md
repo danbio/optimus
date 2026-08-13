@@ -21,7 +21,7 @@
 | Mojibake em 24 produtos do estoque | 🔴 Pendente | Nada, mas os nomes aparecem errados na tela |
 | Hospedagem com suporte a Python | 🔴 Pendente | **Implantação em produção** |
 | PDF de propostas | 🔲 Backlog | Independente — nenhum jeito de gerar/enviar a proposta pro cliente hoje |
-| Sugestão automática de inversor compatível | 🔲 Backlog | Escolha do inversor é 100% manual, sem checar potência/fase/tensão |
+| Sugestão automática de inversor compatível | ✅ Feito (2026-08-13) | Relação CC:CA, faixa configurável em `/configuracoes/` — ver skill solar-domain §2.1 |
 
 > **Hospedagem:** o plano atual (Hostinger Business Web Hosting) **não roda
 > Django** — a própria Hostinger documenta que Python exige acesso root,

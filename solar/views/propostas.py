@@ -27,7 +27,7 @@ from ..models import (
     PrecoEquipamentoSolar,
     PropostaSolar,
 )
-from ._helpers import calcular_kwp
+from ._helpers import calcular_kwp, inversores_compativeis
 
 # ── CRUD de Propostas ─────────────────────────────────────────────────────────
 
@@ -222,11 +222,21 @@ def dimensionar(request: HttpRequest) -> HttpResponse:
     qtd_sugerida = None
     kwp_real = None
     area_m2 = None
+    inversores = []
 
     if kwp_necessario and modulo:
         qtd_sugerida = math.ceil(kwp_necessario * 1000 / modulo.potencia_wp)
         kwp_real = round(qtd_sugerida * modulo.potencia_wp / 1000, 3)
         area_m2 = round(qtd_sugerida * modulo.area_m2, 2)
+
+        from configuracoes.models import Configuracao
+
+        config = Configuracao.atual()
+        inversores = inversores_compativeis(
+            kwp_real,
+            config.inversor_sobrecarga_minima_pct,
+            config.inversor_sobrecarga_maxima_pct,
+        )
 
     return render(
         request,
@@ -237,6 +247,7 @@ def dimensionar(request: HttpRequest) -> HttpResponse:
             "kwp_real": kwp_real,
             "area_m2": area_m2,
             "modulo": modulo,
+            "inversores": inversores,
         },
     )
 
@@ -245,17 +256,19 @@ def dimensionar(request: HttpRequest) -> HttpResponse:
 def adicionar_item_solar(request: HttpRequest) -> HttpResponse:
     """Endpoint HTMX para adicionar uma linha ao formset.
 
-    Sem parâmetros: linha vazia (botão "Adicionar Item"). Com `modulo` e
-    `quantidade`: linha pré-preenchida com o resultado do dimensionamento
-    (botão "Usar este dimensionamento" no preview) — evita que o vendedor
-    calcule a sugestão e depois tenha que digitá-la de novo na tabela.
+    Sem parâmetros: linha vazia (botão "Adicionar Item"). Com `modulo`,
+    `inversor`, `estrutura` ou `material` (+ opcionalmente `quantidade`):
+    linha pré-preenchida — usado pelos botões "Usar este dimensionamento" e
+    "Usar este inversor" no preview, pra não obrigar o vendedor a calcular a
+    sugestão e depois digitá-la de novo na tabela.
     """
     index = request.GET.get("index", "0")
     initial = {}
-    modulo_id = request.GET.get("modulo")
+    for campo in ("modulo", "inversor", "estrutura", "material"):
+        valor = request.GET.get(campo)
+        if valor:
+            initial[campo] = valor
     quantidade = request.GET.get("quantidade")
-    if modulo_id:
-        initial["modulo"] = modulo_id
     if quantidade:
         initial["quantidade"] = quantidade
     form = ItemPropostaSolarForm(prefix=f"itens-{index}", initial=initial or None)

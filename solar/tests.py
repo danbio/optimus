@@ -512,3 +512,114 @@ class DimensionamentoConectadoAosItensTests(TestCase):
         self.assertEqual(proposta.modulo_id, self.modulo.pk)
         self.assertEqual(proposta.quantidade_modulos, 13)
         self.assertGreater(proposta.potencia_kwp, 0)
+
+
+# ---------------------------------------------------------------------------
+# Sugestão automática de inversor compatível
+# ---------------------------------------------------------------------------
+
+
+class InversoresCompativeisHelperTests(TestCase):
+    """Testa a função pura, sem HTTP — regra: potência do sistema ÷ potência
+    do inversor precisa cair dentro da faixa configurada em Configuracao."""
+
+    def setUp(self) -> None:
+        from .views._helpers import inversores_compativeis
+
+        self.fn = inversores_compativeis
+        self.inv_5k = Inversor.objects.create(
+            fabricante="TestFab", modelo="5K", potencia_kw=Decimal("5.00"),
+            tensao_max_entrada=600, quantidade_mppt=2, garantia=5,
+        )
+        self.inv_2k = Inversor.objects.create(
+            fabricante="TestFab", modelo="2K", potencia_kw=Decimal("2.00"),
+            tensao_max_entrada=600, quantidade_mppt=2, garantia=5,
+        )
+        self.inv_inativo = Inversor.objects.create(
+            fabricante="TestFab", modelo="INATIVO", potencia_kw=Decimal("5.00"),
+            tensao_max_entrada=600, quantidade_mppt=2, garantia=5, ativo=False,
+        )
+
+    def test_marca_compativel_dentro_da_faixa(self) -> None:
+        # 6.1 kWp / 5 kW = 122% — dentro de 80%-135%
+        resultado = self.fn(Decimal("6.1"), Decimal("80"), Decimal("135"))
+        item_5k = next(r for r in resultado if r["inversor"] == self.inv_5k)
+        self.assertTrue(item_5k["compativel"])
+        self.assertEqual(item_5k["ratio_pct"], Decimal("122.0"))
+
+    def test_marca_incompativel_fora_da_faixa(self) -> None:
+        # 6.1 kWp / 2 kW = 305% — muito acima de 135%
+        resultado = self.fn(Decimal("6.1"), Decimal("80"), Decimal("135"))
+        item_2k = next(r for r in resultado if r["inversor"] == self.inv_2k)
+        self.assertFalse(item_2k["compativel"])
+
+    def test_ignora_inversor_inativo(self) -> None:
+        resultado = self.fn(Decimal("6.1"), Decimal("80"), Decimal("135"))
+        pks = [r["inversor"].pk for r in resultado]
+        self.assertNotIn(self.inv_inativo.pk, pks)
+
+    def test_ordena_compativeis_primeiro_por_proximidade_de_100pct(self) -> None:
+        resultado = self.fn(Decimal("6.1"), Decimal("80"), Decimal("135"))
+        self.assertEqual(resultado[0]["inversor"], self.inv_5k)  # 122%, compatível
+        self.assertEqual(resultado[-1]["inversor"], self.inv_2k)  # 305%, pior caso
+
+    def test_kwp_zero_ou_negativo_retorna_lista_vazia(self) -> None:
+        self.assertEqual(self.fn(Decimal("0"), Decimal("80"), Decimal("135")), [])
+        self.assertEqual(self.fn(Decimal("-1"), Decimal("80"), Decimal("135")), [])
+
+    def test_entrada_invalida_nao_quebra(self) -> None:
+        self.assertEqual(self.fn("não é número", Decimal("80"), Decimal("135")), [])
+        self.assertEqual(self.fn(None, Decimal("80"), Decimal("135")), [])
+
+
+class DimensionarComInversorSugeridoTests(TestCase):
+    """Integração via HTTP: o endpoint dimensionar precisa combinar o
+    dimensionamento com a configuração salva em Configuracao."""
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.modulo = _modulo()  # 400 Wp
+        cls.inversor = _inversor()  # 5 kW
+        cls.user = User.objects.create_user(username="vend_inv", password="senha-de-teste")
+        cls.user.groups.add(Group.objects.get_or_create(name=GRUPO_ADMIN)[0])
+
+    def setUp(self) -> None:
+        self.client.force_login(self.user)
+
+    def test_preview_mostra_inversor_dentro_da_faixa_padrao(self) -> None:
+        # 700 kWh/mês, HSP 5.5, fator 0.75 -> 15 módulos de 400W = 6.0 kWp real.
+        # 6.0 / 5 (potência do inversor) = 120% — dentro da faixa padrão 80%-135%.
+        resposta = self.client.get(
+            reverse("solar:dimensionar"),
+            {"consumo_medio_kwh": "700", "hsp": "5.5", "fator_eficiencia": "0.75", "modulo": self.modulo.pk},
+        )
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn("Inversores compat", corpo)
+        self.assertIn(self.inversor.modelo, corpo)
+        self.assertIn('class="badge badge-verde"', corpo)
+
+    def test_link_configuracoes_some_para_quem_nao_e_administrador(self) -> None:
+        from core.permissoes import GRUPO_VENDEDOR
+
+        vendedor = User.objects.create_user(username="vend_sem_admin", password="senha-de-teste")
+        vendedor.groups.add(Group.objects.get_or_create(name=GRUPO_VENDEDOR)[0])
+        self.client.force_login(vendedor)
+
+        resposta = self.client.get(
+            reverse("solar:dimensionar"),
+            {"consumo_medio_kwh": "700", "hsp": "5.5", "fator_eficiencia": "0.75", "modulo": self.modulo.pk},
+        )
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertNotIn('href="/configuracoes/"', corpo)
+
+    def test_usar_este_inversor_preenche_item_com_o_inversor(self) -> None:
+        resposta = self.client.get(
+            reverse("solar:adicionar_item"), {"index": "0", "inversor": self.inversor.pk}
+        )
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn(f'<option value="{self.inversor.pk}" selected>', corpo)
+        self.assertIn('combo-inversor" style="display: block', corpo)

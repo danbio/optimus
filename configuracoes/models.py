@@ -29,12 +29,48 @@ class Configuracao(BaseModel):
         ),
     )
 
+    inversor_sobrecarga_minima_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("80.00"),
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("500"))],
+        verbose_name="relação CC:CA mínima aceita (%)",
+        help_text=(
+            "Abaixo desse percentual (potência do sistema ÷ potência do "
+            "inversor), o inversor é marcado como incompatível na proposta "
+            "solar por estar superdimensionado para o sistema."
+        ),
+    )
+    inversor_sobrecarga_maxima_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("135.00"),
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("500"))],
+        verbose_name="relação CC:CA máxima aceita (%)",
+        help_text=(
+            "Acima desse percentual, o inversor é marcado como incompatível "
+            "por sobrecarga (clipping excessivo). 100% = potência do "
+            "sistema igual à do inversor; a faixa padrão (80%–135%) segue a "
+            "prática usual do mercado solar brasileiro."
+        ),
+    )
+
     class Meta:
         verbose_name = "configuração"
         verbose_name_plural = "configurações"
 
     def __str__(self) -> str:
         return "Configurações do sistema"
+
+    def clean(self) -> None:
+        if (
+            self.inversor_sobrecarga_minima_pct is not None
+            and self.inversor_sobrecarga_maxima_pct is not None
+            and self.inversor_sobrecarga_minima_pct >= self.inversor_sobrecarga_maxima_pct
+        ):
+            raise ValidationError(
+                {"inversor_sobrecarga_maxima_pct": "Deve ser maior que a relação mínima."}
+            )
 
     def save(self, *args, **kwargs) -> None:
         # Só força INSERT quando a linha 1 realmente ainda não existe. Sem essa
