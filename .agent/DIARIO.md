@@ -19,17 +19,18 @@
 | `ordens_servico` | ✅ Completo | OS com checklist, fotos, técnicos, faturamento                                          |
 | `financeiro`     | ✅ Completo | Lançamentos, parcelas, baixas, dashboard                                                |
 | `balcao`         | ✅ Completo | PDV carrinho HTMX, baixa estoque, lançamento automático                                 |
-| `pos_venda`      | 🔲 Pendente | App criado, modelos não implementados                                                   |
+| `pos_venda`      | ✅ Completo | Chamados, interações, histórico do cliente                                              |
 
 **Dívida técnica prioritária (ver ROADMAP.md):**
 
 1. 🔴 Type Hints ausentes em views e services
 2. 🟡 Dashboards síncronos (candidatos a async)
-3. 🟠 RBAC (permissões por grupo) não implementado
+3. 🔴 Mojibake em 24 produtos do `estoque` (importação da planilha Intelbras)
 
 **Atualizações Recentes:**
 
-- `[2026-08-09]` **Retomada após pausa — preparação para produção.** RBAC implementado (3 grupos, matriz central em `core/permissoes.py` + middleware), settings endurecido (HTTPS/HSTS/cookies sob `DJANGO_ENV=production`) e suporte a PostgreSQL via `DATABASE_URL`. 50 testes passando (38 + 12 novos de RBAC). **Falta para publicar:** backup automático e contratar hospedagem com Python — o plano Hostinger atual não roda Django.
+- `[2026-08-13]` Corrigido bug de CSS ausente em dev (`STATICFILES_STORAGE` exigia manifesto de `collectstatic`, que só roda em produção — trocado por `STORAGES` condicional). Ao validar, encontrado e corrigido problema de segurança real: `DEBUG=True` do `.env` local vazava para produção quando `DJANGO_ENV=production` era setado sem outras variáveis. Duas travas agora: `.env` não é lido quando `DJANGO_ENV=production`, e `DEBUG` é `False` fixo em produção independente da variável. 3 testes novos (subprocesso, recarregam settings do zero). 53 testes passando no total.
+- `[2026-08-09]` **Retomada após pausa — preparação para produção.** RBAC implementado (3 grupos, matriz central em `core/permissoes.py` + middleware), settings endurecido (HTTPS/HSTS/cookies sob `DJANGO_ENV=production`), suporte a PostgreSQL via `DATABASE_URL` e comando `backup_db` (testado com restauração real). 50 testes passando. **Falta para publicar:** contratar hospedagem com Python — o plano Hostinger atual não roda Django.
 - `[2026-04-14]` Refatoração da Sidebar: Agrupamento de links técnicos (Módulos, Inversores, etc.) dentro de um dropdown "Componentes" para reduzir poluição visual no app Solar. Implementado via CSS puro (acordeão de 2º nível).
 
 **Stack:** Python 3.13 · Django 6.0.3 · CSS puro (intelbras.css) · HTMX · SQLite (dev)
