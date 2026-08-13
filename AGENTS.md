@@ -58,6 +58,7 @@ ERP interno para empresa em Tocantins/BR. Três linhas de negócio:
 | `financeiro` | ✅ | Lançamentos, parcelas, baixas, dashboard |
 | `balcao` | ✅ | PDV carrinho HTMX, baixa estoque, lançamento automático |
 | `pos_venda` | ✅ | Chamados, interações, histórico do cliente |
+| `configuracoes` | ✅ | Parâmetros de regra de negócio ajustáveis pelo Administrador (singleton) |
 
 ---
 
@@ -165,6 +166,24 @@ Nenhum commit deve ser feito com falhas nesses 4 passos.
 | 🟡 Média | Reduzir inline styles nos templates | ~1190 ocorrências |
 | ✅ Feito | RBAC (permissões por grupo) | `core/permissoes.py` + middleware |
 | 🟠 Baixa | Async views para dashboards | Depende de type hints |
+
+### Configurações (parâmetros de negócio)
+
+Painel único (`/configuracoes/`, só Administrador) para regras que hoje seriam
+hardcoded — ex.: `desconto_maximo_balcao_pct`. Modelo singleton em
+`configuracoes/models.py` (sempre pk=1, `Configuracao.atual()` lê/cria).
+
+Para adicionar um novo parâmetro: campo no model + migration + campo no
+`ConfiguracaoForm` + bloco no template + ler via `Configuracao.atual().campo`
+onde a regra se aplica. Não criar uma segunda tela de config — tudo entra
+nesse painel.
+
+Toda vez que um item do menu lateral (`templates/base.html`) for restrito a um
+grupo em `core/permissoes.py`, escondê-lo também da navegação com
+`{% load core_extras %}` + `{% if user|in_group:"Administrador" %}` — o RBAC
+bloqueia o acesso, mas se o link continuar visível pra quem não pode entrar, a
+pessoa clica e só descobre no 403. Já aconteceu 2x (menu Financeiro e o card
+de KPI do dashboard) por eu ter esquecido isso ao implementar o RBAC.
 
 ### Backup
 

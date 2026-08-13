@@ -22,6 +22,7 @@ urlpatterns = [
     path("financeiro/", include("financeiro.urls")),
     path("balcao/", include("balcao.urls")),
     path("pos-venda/", include("pos_venda.urls")),
+    path("configuracoes/", include("configuracoes.urls")),
     # Raiz redireciona para dashboard (exige login)
     path("", DashboardView.as_view(), name="home"),
 ]

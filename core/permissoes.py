@@ -31,6 +31,7 @@ ACESSO_POR_MODULO: dict[str, frozenset[str]] = {
     "servicos": COMERCIAL,
     "balcao": COMERCIAL,
     "financeiro": SOMENTE_ADMIN,
+    "configuracoes": SOMENTE_ADMIN,
     "admin": SOMENTE_ADMIN,  # admin do Django
 }
 

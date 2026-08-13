@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "financeiro",
     "balcao",
     "pos_venda",
+    "configuracoes",
 ]
 
 MIDDLEWARE = [

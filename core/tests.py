@@ -123,6 +123,30 @@ class MiddlewareDeAcessoTests(TestCase):
 
         self.assertEqual(resposta.status_code, 200)
 
+    def test_sidebar_esconde_links_que_o_middleware_bloquearia(self) -> None:
+        """Sem isso, quem não tem acesso via clica no link, chega até o
+        middleware e só ali descobre que não pode — a navegação não avisa."""
+        vendedor = User.objects.create_user(username="vend_side", password="senha-de-teste")
+        vendedor.groups.add(Group.objects.get(name=GRUPO_VENDEDOR))
+        self.client.force_login(vendedor)
+
+        resposta = self.client.get(reverse("dashboard"))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertNotIn("Financeiro", corpo)
+        self.assertNotIn("Configurações", corpo)
+
+    def test_sidebar_mostra_links_para_administrador(self) -> None:
+        admin = User.objects.create_user(username="adm_side", password="senha-de-teste")
+        admin.groups.add(Group.objects.get(name=GRUPO_ADMIN))
+        self.client.force_login(admin)
+
+        resposta = self.client.get(reverse("dashboard"))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn("Financeiro", corpo)
+        self.assertIn("Configurações", corpo)
+
 
 class DebugNuncaVazaParaProducaoTests(SimpleTestCase):
     """Trava a garantia de config/settings.py: DEBUG=True não pode chegar em
