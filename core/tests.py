@@ -1,7 +1,13 @@
-"""Testes do app core — controle de acesso por grupo (RBAC)."""
+"""Testes do app core — controle de acesso por grupo (RBAC) e settings."""
 
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+from django.conf import settings
 from django.contrib.auth.models import Group, User
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from core.permissoes import (
@@ -116,3 +122,69 @@ class MiddlewareDeAcessoTests(TestCase):
         resposta = self.client.get(reverse("dashboard"))
 
         self.assertEqual(resposta.status_code, 200)
+
+
+class DebugNuncaVazaParaProducaoTests(SimpleTestCase):
+    """Trava a garantia de config/settings.py: DEBUG=True não pode chegar em
+    produção, nem por variável de ambiente esquecida, nem por um .env de
+    desenvolvimento parado no servidor por engano.
+
+    Roda em subprocesso de propósito — settings já está carregado neste
+    processo de teste, então é preciso um interpretador novo para observar o
+    módulo sendo importado do zero sob variáveis de ambiente diferentes.
+    """
+
+    def _debug_em(self, env_extra: dict) -> bool:
+        env = {**os.environ, **env_extra}
+        # Isola de qualquer .env real do projeto: o teste decide sozinho o
+        # ambiente, não deve depender do que estiver no disco.
+        env.pop("DJANGO_ENV", None)
+        env.update(env_extra)
+
+        codigo = (
+            "import django; django.setup(); "
+            "from django.conf import settings; "
+            "print('SIM' if settings.DEBUG else 'NAO')"
+        )
+        resultado = subprocess.run(
+            [sys.executable, "-c", codigo],
+            cwd=Path(settings.BASE_DIR),
+            env={**env, "DJANGO_SETTINGS_MODULE": "config.settings"},
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertEqual(
+            resultado.returncode, 0, f"settings.py falhou ao carregar: {resultado.stderr}"
+        )
+        return resultado.stdout.strip() == "SIM"
+
+    def test_producao_normal_fica_com_debug_desligado(self) -> None:
+        self.assertFalse(
+            self._debug_em(
+                {
+                    "DJANGO_ENV": "production",
+                    "SECRET_KEY": "x" * 50,
+                    "ALLOWED_HOSTS": "erp.exemplo.com.br",
+                }
+            )
+        )
+
+    def test_producao_ignora_debug_true_setado_a_mao(self) -> None:
+        """Reproduz o incidente real: alguém definiu DEBUG=True junto com
+        DJANGO_ENV=production. A trava tem que vencer isso."""
+        self.assertFalse(
+            self._debug_em(
+                {
+                    "DJANGO_ENV": "production",
+                    "SECRET_KEY": "x" * 50,
+                    "ALLOWED_HOSTS": "erp.exemplo.com.br",
+                    "DEBUG": "True",
+                }
+            )
+        )
+
+    def test_dev_sem_env_fica_com_debug_ligado(self) -> None:
+        """Sem DJANGO_ENV=production, DEBUG é True por padrão — é o que faz
+        o CSS/estáticos carregarem em dev sem precisar rodar collectstatic."""
+        self.assertTrue(self._debug_em({}))

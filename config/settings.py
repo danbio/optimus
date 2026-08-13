@@ -5,22 +5,33 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-load_dotenv(BASE_DIR / ".env")
+# DJANGO_ENV é lido ANTES de carregar o .env de propósito: numa plataforma
+# gerenciada de verdade, DJANGO_ENV=production vem do ambiente real do host,
+# não de um arquivo. Só carregamos o .env quando isso não é o caso — assim,
+# se um .env de desenvolvimento (com DEBUG=True) for parar acidentalmente no
+# servidor de produção (cópia de pasta, deploy errado), ele é ignorado em vez
+# de vazar DEBUG=True para o público.
+IS_PRODUCTION = os.environ.get("DJANGO_ENV") == "production"
+if not IS_PRODUCTION:
+    load_dotenv(BASE_DIR / ".env")
 
 _SECRET_KEY = os.environ.get("SECRET_KEY", "")
 if not _SECRET_KEY:
     # Em desenvolvimento, usa chave insegura com aviso; em produção exige .env
     import sys
 
-    if "runserver" in sys.argv or os.environ.get("DJANGO_ENV") != "production":
+    if "runserver" in sys.argv or not IS_PRODUCTION:
         _SECRET_KEY = "django-insecure-dev-only-nao-usar-em-producao"
     else:
         raise RuntimeError("SECRET_KEY não configurada. Defina no arquivo .env antes de iniciar em produção.")
 SECRET_KEY = _SECRET_KEY
 
-IS_PRODUCTION = os.environ.get("DJANGO_ENV") == "production"
-
-DEBUG = os.environ.get("DEBUG", "False").lower() in ("1", "true", "yes", "on")
+# Trava dura: em produção, DEBUG é SEMPRE False, sem exceção — não depende da
+# variável de ambiente DEBUG existir ou não. DEBUG=True em produção expõe
+# stack trace com código-fonte, valores de settings e variáveis de ambiente
+# para qualquer visitante; não é algo que deva ficar à mercê de uma variável
+# esquecida ou de um .env que vazou.
+DEBUG = False if IS_PRODUCTION else os.environ.get("DEBUG", "True").lower() in ("1", "true", "yes", "on")
 ALLOWED_HOSTS = [host.strip() for host in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if host.strip()]
 
 # Origens confiáveis para CSRF — obrigatório no Django 4+ quando o site roda
@@ -128,7 +139,16 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        if IS_PRODUCTION
+        else "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
