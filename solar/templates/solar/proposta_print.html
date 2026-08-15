@@ -64,40 +64,34 @@
         <th>Item</th>
         <th>Especificação</th>
         <th style="text-align: center;">Qtd.</th>
-        <th style="text-align: right;">Vlr. unit.</th>
-        <th style="text-align: right;">Subtotal</th>
       </tr>
     </thead>
     <tbody>
       {% for item in itens %}
       <tr>
         <td>
-          {% if item.modulo %}Módulo{% elif item.inversor %}Inversor{% elif item.estrutura %}Estrutura{% else %}Material{% endif %}
+          <span class="badge badge-cinza">
+            {% if item.modulo %}Módulo{% elif item.inversor %}Inversor{% elif item.estrutura %}Estrutura{% else %}{{ item.material.get_categoria_display }}{% endif %}
+          </span>
         </td>
         <td>
           {% if item.modulo %}
-            {{ item.modulo }}
-            <div style="font-size: 11px; color: var(--texto-corpo);">
-              {{ item.modulo.potencia_wp }}Wp · Efic. {{ item.modulo.eficiencia }}% · Garantia {{ item.modulo.garantia_produto }}/{{ item.modulo.garantia_desempenho }} anos
-            </div>
+            <strong class="doc-nome-equip">{{ item.modulo.fabricante }} {{ item.modulo.modelo }}</strong>
+            <div class="doc-spec-linha">{{ item.modulo.potencia_wp }}Wp · Garantia {{ item.modulo.garantia_desempenho }} anos</div>
           {% elif item.inversor %}
-            {{ item.inversor }}
-            <div style="font-size: 11px; color: var(--texto-corpo);">
-              {{ item.inversor.potencia_kw }}kW · {{ item.inversor.get_tipo_display }} · {{ item.inversor.get_fase_display }} · Garantia {{ item.inversor.garantia }} anos
-            </div>
+            <strong class="doc-nome-equip">{{ item.inversor.fabricante }} {{ item.inversor.modelo }}</strong>
+            <div class="doc-spec-linha">{{ item.inversor.potencia_kw }}kW · Garantia {{ item.inversor.garantia }} anos</div>
           {% elif item.estrutura %}
-            {{ item.estrutura }}
-            <div style="font-size: 11px; color: var(--texto-corpo);">{{ item.estrutura.get_tipo_display }} · {{ item.estrutura.get_material_display }}</div>
+            <strong class="doc-nome-equip">{{ item.estrutura.fabricante }} {{ item.estrutura.modelo }}</strong>
+            <div class="doc-spec-linha">{{ item.estrutura.get_tipo_display }}</div>
           {% else %}
-            {{ item.material }}
+            <strong class="doc-nome-equip">{{ item.material.fabricante }} {{ item.material.modelo }}</strong>
           {% endif %}
         </td>
-        <td style="text-align: center;">{{ item.quantidade }}</td>
-        <td style="text-align: right;">R$ {{ item.preco_venda_snapshot|floatformat:2 }}</td>
-        <td style="text-align: right;">R$ {{ item.subtotal|floatformat:2 }}</td>
+        <td style="text-align: center; font-weight: 700;">{{ item.quantidade }}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="5" style="text-align: center; color: var(--texto-corpo);">Nenhum equipamento nesta proposta.</td></tr>
+      <tr><td colspan="3" style="text-align: center; color: var(--texto-corpo);">Nenhum equipamento nesta proposta.</td></tr>
       {% endfor %}
     </tbody>
   </table>

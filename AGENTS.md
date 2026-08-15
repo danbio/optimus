@@ -198,6 +198,16 @@ Para uma nova tela de impressão (recibo de venda balcão, OS, etc.):
 print.css. Não copiar o layout de `base.html` (`.topbar`/`.sidebar`/`.main`)
 para um documento — é pra sair impresso, não para navegar no sistema.
 
+Documento pra cliente (proposta, recibo) não mostra preço por item — só o
+total, na seção de Investimento. Decisão de negócio, não técnica.
+
+**Armadilha do Django, já mordeu uma vez:** `{# comentário #}` **não
+funciona em várias linhas** — o parser só reconhece como comentário se
+abrir e fechar na mesma linha. Um comentário de 3 linhas com `{# #}` não
+vira comentário nenhum: o texto (marcadores `{#`/`#}` inclusos) vaza direto
+pro HTML renderizado. Pra comentário de várias linhas, usar
+`{% comment %}...{% endcomment %}`, que suporta isso de verdade.
+
 ### Backup
 
 ```powershell

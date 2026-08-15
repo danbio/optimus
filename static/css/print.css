@@ -88,6 +88,18 @@ body {
   color: var(--texto-titulo);
 }
 
+/* Nomes de produto vêm em CAIXA ALTA do catálogo — capitalize amacia a
+   leitura no documento do cliente sem alterar o dado cadastrado. */
+.doc-nome-equip {
+  text-transform: capitalize;
+  font-size: 13px;
+}
+.doc-spec-linha {
+  font-size: 11px;
+  color: var(--texto-corpo);
+  margin-top: 2px;
+}
+
 .doc-assinaturas {
   display: grid;
   grid-template-columns: 1fr 1fr;

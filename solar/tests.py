@@ -675,6 +675,18 @@ class PropostaPrintTests(TestCase):
         self.assertNotIn('class="topbar"', corpo)
         self.assertNotIn("htmx.org", corpo)
 
+    def test_sem_comentario_de_template_vazando_no_html(self) -> None:
+        """Regressão: {# comentário #} multi-linha do Django NÃO é
+        reconhecido como comentário (só funciona numa linha só — usar
+        {% comment %}...{% endcomment %} pra várias linhas). O template
+        antigo vazou o texto do comentário direto pro documento que iria
+        pro cliente."""
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertNotIn("{#", corpo)
+        self.assertNotIn("#}", corpo)
+
     def test_mostra_numero_cliente_e_total(self) -> None:
         resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
         corpo = resposta.content.decode("utf-8")
@@ -683,14 +695,25 @@ class PropostaPrintTests(TestCase):
         self.assertIn(self.proposta.cliente.nome, corpo)
         self.assertIn("Total", corpo)
 
-    def test_tabela_de_equipamentos_lista_os_itens_com_subtotal(self) -> None:
+    def test_tabela_de_equipamentos_lista_os_itens(self) -> None:
         resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
         corpo = resposta.content.decode("utf-8")
 
         self.assertIn(self.modulo.modelo, corpo)
         self.assertIn(self.inversor.modelo, corpo)
-        self.assertIn("R$ 6000,00", corpo)  # módulo: 10 × 600
-        self.assertIn("R$ 4000,00", corpo)  # inversor: 1 × 4000
+
+    def test_tabela_de_equipamentos_nao_mostra_preco_por_item(self) -> None:
+        """Preço só aparece no total (seção Investimento) — o cliente não
+        vê a composição de preço por peça, decisão de negócio do usuário."""
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertNotIn("Vlr. unit", corpo)
+        self.assertNotIn("Subtotal", corpo)
+        # Preço por item seria 600 (módulo) ou 4000 (inversor) — nenhum dos
+        # dois deve aparecer fora da seção de Investimento (que soma tudo).
+        self.assertNotIn("R$ 600,00", corpo)
+        self.assertNotIn("R$ 4000,00", corpo)
 
     def test_proposta_inexistente_retorna_404(self) -> None:
         resposta = self.client.get(reverse("solar:imprimir", args=[99999]))
