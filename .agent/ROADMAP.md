@@ -22,6 +22,8 @@
 | Hospedagem com suporte a Python | 🔴 Pendente | **Implantação em produção** |
 | PDF de propostas | ✅ Feito (2026-08-13) | `@media print` + `window.print()`, sem lib externa — ver skill solar-domain §12 |
 | Sugestão automática de inversor compatível | ✅ Feito (2026-08-13) | Relação CC:CA, faixa configurável em `/configuracoes/` — ver skill solar-domain §2.1 |
+| Resumo de fechamento (copiar/colar p/ WhatsApp) | ✅ Feito (2026-08-13) | Card em `proposta_detail.html` — geração, equipamento, valor à vista. Ainda sem financiamento/cartão |
+| Financiamento / parcelamento no cartão | 🔲 Em discussão | Usuário trouxe tabelas reais (múltiplos adquirentes + tabela Intelbras por bandeira) — ver DIARIO 2026-08-13f. Maior lacuna do fluxo comercial hoje |
 
 > **Hospedagem:** o plano atual (Hostinger Business Web Hosting) **não roda
 > Django** — a própria Hostinger documenta que Python exige acesso root,

@@ -738,3 +738,98 @@ class PropostaPrintTests(TestCase):
         corpo = resposta.content.decode("utf-8")
 
         self.assertIn(reverse("solar:imprimir", args=[self.proposta.pk]), corpo)
+
+
+# ---------------------------------------------------------------------------
+# Resumo de fechamento (copiar/colar) — geracao_mensal_kwh, inversor_principal
+# ---------------------------------------------------------------------------
+
+
+class PropriedadesDeResumoTests(TestCase):
+    def setUp(self) -> None:
+        self.modulo = _modulo()  # 400 Wp
+        self.inversor = _inversor()  # 5 kW
+
+    def test_geracao_mensal_kwh_calcula_a_partir_de_kwp_hsp_e_fator(self) -> None:
+        proposta = PropostaSolar.objects.create(
+            cliente=_cliente(), consumo_medio_kwh=350, hsp=Decimal("5.50"),
+            fator_eficiencia=Decimal("0.75"), potencia_kwp=Decimal("4.000"),
+            quantidade_modulos=10, modulo=self.modulo, valor_instalacao=Decimal("0"),
+        )
+        # potencia_real_kwp = 10 * 400 / 1000 = 4.0 kWp
+        # geracao = 4.0 * 5.5 * 30 * 0.75 = 495
+        self.assertEqual(proposta.geracao_mensal_kwh, 495)
+
+    def test_geracao_mensal_kwh_zero_sem_modulo(self) -> None:
+        proposta = PropostaSolar.objects.create(
+            cliente=_cliente(), consumo_medio_kwh=350, hsp=Decimal("5.50"),
+            fator_eficiencia=Decimal("0.75"), potencia_kwp=Decimal("0"),
+            quantidade_modulos=0, valor_instalacao=Decimal("0"),
+        )
+        self.assertEqual(proposta.geracao_mensal_kwh, 0)
+
+    def test_inversor_principal_pega_o_primeiro_item_com_inversor(self) -> None:
+        proposta = _proposta(self.modulo)
+        self.assertIsNone(proposta.inversor_principal)
+
+        ItemPropostaSolar.objects.create(
+            proposta=proposta, inversor=self.inversor, quantidade=1,
+            preco_venda_snapshot=Decimal("4000"), preco_custo_snapshot=Decimal("3000"),
+            data_referencia_preco=date.today(),
+        )
+        self.assertEqual(proposta.inversor_principal, self.inversor)
+
+    def test_quantidade_inversores_soma_os_itens_de_inversor(self) -> None:
+        proposta = _proposta(self.modulo)
+        self.assertEqual(proposta.quantidade_inversores, 0)
+
+        ItemPropostaSolar.objects.create(
+            proposta=proposta, inversor=self.inversor, quantidade=2,
+            preco_venda_snapshot=Decimal("4000"), preco_custo_snapshot=Decimal("3000"),
+            data_referencia_preco=date.today(),
+        )
+        self.assertEqual(proposta.quantidade_inversores, 2)
+
+
+class ResumoDeFechamentoNaTelaTests(TestCase):
+    """Card "Resumo para fechamento" em proposta_detail.html — o texto que o
+    usuário hoje monta manualmente pra mandar no WhatsApp."""
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.modulo = _modulo()
+        cls.inversor = _inversor()
+        cls.proposta = _proposta(cls.modulo)
+        ItemPropostaSolar.objects.create(
+            proposta=cls.proposta, inversor=cls.inversor, quantidade=1,
+            preco_venda_snapshot=Decimal("4000"), preco_custo_snapshot=Decimal("3000"),
+            data_referencia_preco=date.today(),
+        )
+        cls.user = User.objects.create_user(username="vend_resumo", password="senha-de-teste")
+        cls.user.groups.add(Group.objects.get_or_create(name=GRUPO_ADMIN)[0])
+
+    def setUp(self) -> None:
+        self.client.force_login(self.user)
+
+    def test_textarea_de_resumo_aparece_com_dados_da_proposta(self) -> None:
+        resposta = self.client.get(reverse("solar:detalhe", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn('id="resumo-proposta"', corpo)
+        self.assertIn(self.proposta.cliente.nome, corpo)
+        self.assertIn(f"{self.proposta.geracao_mensal_kwh} kWh/mês", corpo)
+        self.assertIn(self.modulo.fabricante, corpo)
+        self.assertIn(self.inversor.fabricante, corpo)
+
+    def test_resumo_nao_tem_espaco_sobrando_no_inicio_das_linhas(self) -> None:
+        """Se a indentação do template vazar pro texto, quem colar no
+        WhatsApp cola com espaços estranhos no início de cada linha."""
+        resposta = self.client.get(reverse("solar:detalhe", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        inicio = corpo.index('id="resumo-proposta"')
+        conteudo = corpo[inicio : corpo.index("</textarea>", inicio)]
+        conteudo = conteudo.split(">", 1)[1]  # remove o resto da tag <textarea ...>
+
+        linhas_com_espaco = [linha for linha in conteudo.split("\n") if linha[:1] in (" ", "\t")]
+        self.assertEqual(linhas_com_espaco, [])

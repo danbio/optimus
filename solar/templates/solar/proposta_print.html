@@ -47,10 +47,10 @@
       <div class="rotulo">Área aproximada</div>
       <div class="valor">{{ proposta.area_total_m2 }} m²</div>
     </div>
-    {% if geracao_mensal_kwh %}
+    {% if proposta.geracao_mensal_kwh %}
     <div class="item">
       <div class="rotulo">Geração estimada</div>
-      <div class="valor">{{ geracao_mensal_kwh }} kWh/mês</div>
+      <div class="valor">{{ proposta.geracao_mensal_kwh }} kWh/mês</div>
     </div>
     {% endif %}
   </div>

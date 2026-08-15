@@ -201,25 +201,16 @@ def proposta_print(request: HttpRequest, pk: int) -> HttpResponse:
     )
     itens = proposta.itens.select_related("modulo", "inversor", "estrutura", "material")
 
-    # Geração mensal estimada — é uma projeção técnica (kWp × HSP × dias ×
-    # fator), não uma promessa financeira. Não calculamos payback/economia em
-    # R$ aqui de propósito: exigiria uma tarifa (R$/kWh), e nem Cliente nem
-    # PropostaSolar têm esse campo hoje — inventar um número herdaria risco
-    # comercial (prometer economia sem dado real por trás).
-    geracao_mensal_kwh = None
-    if proposta.potencia_real_kwp:
-        geracao_mensal_kwh = round(
-            float(proposta.potencia_real_kwp) * float(proposta.hsp) * 30 * float(proposta.fator_eficiencia)
-        )
+    # Não calculamos payback/economia em R$ aqui de propósito: exigiria uma
+    # tarifa (R$/kWh), e nem Cliente nem PropostaSolar têm esse campo hoje —
+    # inventar um número herdaria risco comercial (prometer economia sem
+    # dado real por trás). geracao_mensal_kwh (projeção técnica, não
+    # financeira) já é uma property do model — ver PropostaSolar.
 
     return render(
         request,
         "solar/proposta_print.html",
-        {
-            "proposta": proposta,
-            "itens": itens,
-            "geracao_mensal_kwh": geracao_mensal_kwh,
-        },
+        {"proposta": proposta, "itens": itens},
     )
 
 

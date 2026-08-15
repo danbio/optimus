@@ -407,6 +407,33 @@ class PropostaSolar(BaseModel):
             return 0
         return round(self.quantidade_modulos * self.modulo.area_m2, 2)
 
+    @property
+    def geracao_mensal_kwh(self):
+        """Projeção técnica de geração (kWp × HSP × 30 dias × fator de
+        eficiência) — não é uma promessa financeira, é só a conversão da
+        potência dimensionada em energia esperada. Usada no PDF e no resumo
+        de fechamento (ver proposta_detail.html)."""
+        if not self.potencia_real_kwp:
+            return 0
+        return round(float(self.potencia_real_kwp) * float(self.hsp) * 30 * float(self.fator_eficiencia))
+
+    @property
+    def inversor_principal(self):
+        """Primeiro inversor entre os itens da proposta. Simplificação: o
+        modelo não rastreia um FK de "inversor de referência" como faz com
+        `modulo` — a grande maioria das propostas tem só um inversor, então
+        isso cobre o caso comum. Se um dia existir proposta com múltiplos
+        modelos de inversor, isto mostra só o primeiro."""
+        item = self.itens.filter(inversor__isnull=False).select_related("inversor").first()
+        return item.inversor if item else None
+
+    @property
+    def quantidade_inversores(self):
+        from django.db.models import Sum
+
+        total = self.itens.filter(inversor__isnull=False).aggregate(total=Sum("quantidade"))["total"]
+        return total or 0
+
     def _gerar_numero(self):
         mes = date.today().strftime("%Y%m")
         ultimo = PropostaSolar.objects.filter(numero__startswith=f"SOL-{mes}").order_by("-numero").first()

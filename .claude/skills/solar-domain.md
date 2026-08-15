@@ -194,6 +194,10 @@ observacoes        # TextField (blank)
 @property valor_total          # valor_equipamentos + valor_instalacao
 @property potencia_real_kwp    # quantidade_modulos * modulo.potencia_wp / 1000
 @property area_total_m2        # quantidade_modulos * modulo.area_m2
+@property geracao_mensal_kwh   # potencia_real_kwp * hsp * 30 * fator_eficiencia (projeção técnica)
+@property inversor_principal   # primeiro Inversor entre os itens (model não tem FK de inversor
+                                # de referência como tem `modulo` — assume 1 inversor por proposta)
+@property quantidade_inversores  # Sum(quantidade) dos itens que têm inversor
 ```
 
 ---
@@ -464,6 +468,22 @@ observacoes_homologacao   # TextField
 **Resolução normativa vigente:** REN 1000/2021 (ANEEL). Verificar se houve atualização antes de gerar documentos oficiais.
 
 ---
+
+## 11.1 Resumo de fechamento (copiar/colar) — implementado (2026-08-13)
+
+Card em `proposta_detail.html` ("Resumo para fechamento"), textarea somente-
+leitura pré-preenchida a partir das properties do model + botão "Copiar"
+(`navigator.clipboard.writeText`, com fallback `execCommand('copy')` pra
+contexto HTTP sem clipboard API — comum em rede local sem HTTPS). Não é uma
+view/endpoint novo, é só o template de `proposta_detail.html` — sem lib
+externa, sem JS de terceiro.
+
+Motivação: o usuário monta esse texto manualmente hoje pra fechar venda por
+WhatsApp com cliente que não vai ler um PDF de 10 páginas ("talvez meu
+melhor instrumento de fechamento"). Ainda não inclui forma de pagamento
+financiado/parcelado — só valor à vista — porque isso depende de modelar as
+taxas de parcelamento (ver ROADMAP: "Financiamento / parcelamento no
+cartão", em discussão).
 
 ## 12. PDF de proposta — implementado (2026-08-13)
 
