@@ -2,7 +2,7 @@ from datetime import date
 
 from django.contrib import admin
 
-from .models import EstruturaFixacao, Inversor, MateriaisEletricos, ModuloFotovoltaico, PrecoEquipamentoSolar
+from .models import EstruturaFixacao, Inversor, MateriaisEletricos, ModuloFotovoltaico, PrecoEquipamentoSolar, TaxaCartao
 
 
 @admin.register(MateriaisEletricos)
@@ -60,6 +60,17 @@ class PrecoEquipamentoSolarAdmin(admin.ModelAdmin):
                 filtro["material"] = obj.material
             PrecoEquipamentoSolar.objects.filter(vigente_ate__isnull=True, **filtro).update(vigente_ate=date.today())
         super().save_model(request, obj, form, change)
+
+    def has_module_perms(self, request):
+        return request.user.is_staff
+
+
+@admin.register(TaxaCartao)
+class TaxaCartaoAdmin(admin.ModelAdmin):
+    list_display = ["bandeira", "forma", "parcelas", "percentual"]
+    list_filter = ["bandeira", "forma"]
+    list_editable = ["percentual"]  # editar a tabela inteira em massa quando a Intelbras atualizar
+    ordering = ["bandeira", "forma", "parcelas"]
 
     def has_module_perms(self, request):
         return request.user.is_staff

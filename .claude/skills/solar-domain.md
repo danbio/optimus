@@ -1,6 +1,6 @@
 # Domínio Solar — ERP Optimus (Tocantins/BR)
 
-> ⚠️ Esta skill reflete os models **reais** do app `solar`. Última revisão: 2026-08-13.
+> ⚠️ Esta skill reflete os models **reais** do app `solar`. Última revisão: 2026-08-15.
 
 ---
 
@@ -480,10 +480,65 @@ externa, sem JS de terceiro.
 
 Motivação: o usuário monta esse texto manualmente hoje pra fechar venda por
 WhatsApp com cliente que não vai ler um PDF de 10 páginas ("talvez meu
-melhor instrumento de fechamento"). Ainda não inclui forma de pagamento
-financiado/parcelado — só valor à vista — porque isso depende de modelar as
-taxas de parcelamento (ver ROADMAP: "Financiamento / parcelamento no
-cartão", em discussão).
+melhor instrumento de fechamento"). Desde 2026-08-15 o card também inclui
+parcelamento no cartão — ver §11.2. Financiamento bancário segue fora do
+card (lógica de cálculo própria, fora de escopo — ver §10).
+
+## 11.2 Financiamento / parcelamento no cartão — implementado (2026-08-15)
+
+Model novo `TaxaCartao` (herda `BaseModel`) em `solar/models.py`, guardando
+a tabela real de taxas por forma de pagamento (débito/crédito), bandeira e
+quantidade de parcelas — dados oficiais Intelbras fornecidos pelo usuário
+(não os 3 adquirentes da planilha de comparação, que tinha bugs visíveis e
+foi propositalmente excluída):
+
+```python
+class TaxaCartao(BaseModel):
+    forma       # "debito" | "credito"
+    bandeira    # "visa_master" | "amex" | "elo" | "hiper"
+    parcelas    # IntegerField — 1 a 21
+    percentual  # DecimalField(5,2) — taxa da adquirente, ex. 3.49 = 3,49%
+    ativo       # BooleanField (default=True)
+```
+
+Gerenciado via **Django Admin** (`/admin/solar/taxacartao/`,
+`list_editable = ["percentual"]` — mesmo padrão de
+`PrecoEquipamentoSolarAdmin`), não uma tela própria do app. Seed inicial
+(87 linhas reais) via `python manage.py seed_taxas_cartao`
+(`solar/management/commands/seed_taxas_cartao.py`, idempotente via
+`update_or_create`).
+
+**Fórmula de cálculo** — `solar/views/_helpers.py::calcular_parcela_cartao`:
+
+```python
+def calcular_parcela_cartao(valor_base: Decimal, bandeira: str) -> list[dict]:
+    """Valor da parcela = valor_base / (1 - percentual/100), NÃO valor_base * (1 + percentual)."""
+    # Retorna [{"parcelas": int, "valor_parcela": Decimal}, ...] ordenado 1x→21x
+```
+
+⚠️ **A fórmula NÃO é `valor * (1 + taxa)`** — essa foi a primeira hipótese
+levantada e estava **errada**; só foi corrigida depois de buscar a planilha
+real do usuário e verificar contra 4 pontos de referência reais (1x, 2x,
+21x Visa/Master + Amex). Ver teste de regressão
+`CalcularParcelaCartaoTests.test_formula_nao_e_multiplicar_pela_taxa`.
+
+**Entrada = valor da mão de obra** (`proposta.valor_instalacao`), tratado
+como um detalhe interno de composição de preço — o texto do resumo nunca
+expõe esse valor como "entrada" isoladamente sem contexto; é sempre
+"Entrada de R$ X + parcelamento do restante" (com entrada) ou "Parcelamento
+de 100% no cartão" (sem entrada). Toggle "Com entrada" / "100% no cartão"
+no card, junto com o seletor de bandeira — ambos via HTMX
+(`hx-get` para `solar:resumo_fechamento`, `hx-target="#resumo-fechamento-card"`),
+recalculando ao vivo sem reload. View: `solar/views/propostas.py::resumo_fechamento`,
+reaproveitando o helper `_contexto_resumo_fechamento` também usado pela
+`PropostaSolarDetailView` (evita duplicar a lógica entre a página cheia e o
+parcial HTMX).
+
+Tabela mostrada no resumo: **completa, 2x a 21x** (decisão do usuário —
+não abreviada), conforme a bandeira e o toggle selecionados.
+
+**Fora de escopo (deliberado):** financiamento bancário tem lógica própria
+diferente (não é taxa de adquirente de cartão) — não modelado aqui, ver §10.
 
 ## 12. PDF de proposta — implementado (2026-08-13)
 

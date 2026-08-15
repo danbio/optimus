@@ -1,0 +1,59 @@
+<div class="card-header d-flex justify-content-between align-items-center">
+  <span><i class="bi bi-whatsapp"></i> Resumo para fechamento (copiar e enviar)</span>
+  <button type="button" class="btn-primary btn-sm" id="btn-copiar-resumo" onclick="copiarResumoProposta()">
+    <i class="bi bi-clipboard"></i> Copiar
+  </button>
+</div>
+<div class="card-body">
+  <div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px;">
+    <div class="form-group" style="flex: 1; min-width: 160px; margin-bottom: 0;">
+      <label style="font-size: 12px;">Bandeira do cartão</label>
+      <select class="form-control" name="bandeira"
+              hx-get="{% url 'solar:resumo_fechamento' proposta.pk %}"
+              hx-target="#resumo-fechamento-card"
+              hx-swap="innerHTML"
+              hx-include="[name='bandeira'], [name='com_entrada']">
+        {% for valor, rotulo in bandeira_choices %}
+          <option value="{{ valor }}" {% if valor == bandeira %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="min-width: 160px; margin-bottom: 0;">
+      <label style="font-size: 12px;">Entrada</label>
+      <select class="form-control" name="com_entrada"
+              hx-get="{% url 'solar:resumo_fechamento' proposta.pk %}"
+              hx-target="#resumo-fechamento-card"
+              hx-swap="innerHTML"
+              hx-include="[name='bandeira'], [name='com_entrada']">
+        <option value="1" {% if com_entrada %}selected{% endif %}>Com entrada</option>
+        <option value="0" {% if not com_entrada %}selected{% endif %}>100% no cartão</option>
+      </select>
+    </div>
+  </div>
+
+  <textarea id="resumo-proposta" class="form-control" rows="22" readonly
+    style="font-family: ui-monospace, Consolas, monospace; font-size: 13px; white-space: pre-wrap;">
+Pré Projeto: {{ proposta.cliente.nome }}
+
+Geração Pretendida: {{ proposta.geracao_mensal_kwh }} kWh/mês
+
+{% if proposta.modulo %}{{ proposta.quantidade_modulos }} módulos {{ proposta.modulo.potencia_wp }}W {{ proposta.modulo.fabricante }}{% endif %}{% if proposta.inversor_principal %} + {{ proposta.quantidade_inversores }} inversor {{ proposta.inversor_principal.potencia_kw }}kW {{ proposta.inversor_principal.fabricante }}{% endif %}
+
+Valor do gerador fotovoltaico com mão de obra de instalação, frete, projeto elétrico, material elétrico, aplicativo de monitoramento e garantia de eficiência de 25 anos. (Tudo por nossa conta)
+R$ {{ proposta.valor_total|floatformat:2 }}
+
+Forma de pagamento:
+
+Valor à vista: R$ {{ proposta.valor_total|floatformat:2 }}
+
+{% if com_entrada %}Entrada de R$ {{ entrada|floatformat:2 }} + parcelamento do restante no cartão de crédito:{% else %}Parcelamento de 100% no cartão de crédito:{% endif %}
+
+{% for p in parcelas_cartao %}{{ p.parcelas }}x	R$ {{ p.valor_parcela|floatformat:2 }}
+{% endfor %}
+Proposta válida até {{ proposta.validade|date:"d/m/Y" }}.</textarea>
+  <small style="color: var(--texto-corpo); display: block; margin-top: 6px;">
+    Gerado a partir dos dados da proposta e da tabela de cartão em
+    <a href="/admin/solar/taxacartao/" target="_blank">taxas de cartão</a> — revise antes de enviar.
+    Financiamento bancário ainda não é calculado automaticamente.
+  </small>
+</div>

@@ -254,6 +254,65 @@ class PrecoEquipamentoSolar(BaseModel):
         )
 
 
+class TaxaCartao(BaseModel):
+    """Tabela de acréscimo do cartão por bandeira/parcela (fonte: tabela
+    oficial Intelbras — "Simulador de Acréscimo ao Portador"). Usada pra
+    calcular quanto o cliente paga se optar por parcelar no cartão, no
+    modelo "repassar ao portador" (a Optimus recebe o valor cheio, o
+    acréscimo vai todo pro cliente).
+
+    Fórmula (ver solar/views/_helpers.py::calcular_parcela_cartao):
+        valor_com_acrescimo = valor_base / (1 - percentual/100)
+        valor_da_parcela = valor_com_acrescimo / parcelas
+
+    NÃO é `valor_base × (1 + percentual)` — essa conta dá um resultado
+    ligeiramente menor e propositalmente NÃO é a usada aqui; verificado
+    contra a planilha oficial (base R$750, débito 1,29% → R$759,80, que só
+    bate dividindo pelo complemento).
+    """
+
+    FORMA_DEBITO = "debito"
+    FORMA_CREDITO = "credito"
+    FORMA_PIX = "pix"
+    FORMA_CHOICES = [
+        (FORMA_DEBITO, "Débito"),
+        (FORMA_CREDITO, "Crédito"),
+        (FORMA_PIX, "PIX"),
+    ]
+
+    BANDEIRA_VISA_MASTER = "visa_master"
+    BANDEIRA_AMEX = "amex"
+    BANDEIRA_ELO = "elo"
+    BANDEIRA_HIPER = "hiper"
+    BANDEIRA_CHOICES = [
+        (BANDEIRA_VISA_MASTER, "Visa ou Master"),
+        (BANDEIRA_AMEX, "Amex"),
+        (BANDEIRA_ELO, "Elo"),
+        (BANDEIRA_HIPER, "Hiper"),
+    ]
+
+    forma = models.CharField(max_length=10, choices=FORMA_CHOICES, verbose_name="forma")
+    bandeira = models.CharField(max_length=15, choices=BANDEIRA_CHOICES, verbose_name="bandeira")
+    parcelas = models.PositiveSmallIntegerField(
+        default=1,
+        verbose_name="parcelas",
+        help_text="1 para débito/PIX/crédito à vista; 2 a 21 para crédito parcelado.",
+    )
+    percentual = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="acréscimo (%)")
+
+    class Meta:
+        verbose_name = "taxa de cartão"
+        verbose_name_plural = "taxas de cartão"
+        ordering = ["bandeira", "forma", "parcelas"]
+        constraints = [
+            models.UniqueConstraint(fields=["forma", "bandeira", "parcelas"], name="taxa_cartao_unica_por_combinacao")
+        ]
+
+    def __str__(self):
+        rotulo_parcela = f"{self.parcelas}x" if self.forma == self.FORMA_CREDITO and self.parcelas > 1 else self.get_forma_display()
+        return f"{self.get_bandeira_display()} — {rotulo_parcela} — {self.percentual}%"
+
+
 class ItemPropostaSolar(models.Model):
     """Item de uma proposta solar com snapshot imutável do preço na data de criação."""
 

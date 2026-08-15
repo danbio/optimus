@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import Group, User
+from django.core.management import call_command
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
@@ -20,7 +21,9 @@ from .models import (
     ModuloFotovoltaico,
     PrecoEquipamentoSolar,
     PropostaSolar,
+    TaxaCartao,
 )
+from .views._helpers import calcular_parcela_cartao
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -833,3 +836,154 @@ class ResumoDeFechamentoNaTelaTests(TestCase):
 
         linhas_com_espaco = [linha for linha in conteudo.split("\n") if linha[:1] in (" ", "\t")]
         self.assertEqual(linhas_com_espaco, [])
+
+
+# ---------------------------------------------------------------------------
+# Parcelamento no cartão (TaxaCartao) — dados reais da tabela Intelbras
+# ---------------------------------------------------------------------------
+
+
+def _seed_taxas_visa_master():
+    """Só as linhas de Visa/Master necessárias pros testes — não usa o
+    management command aqui pra manter os testes rápidos e isolados."""
+    dados = [
+        (TaxaCartao.FORMA_CREDITO, 1, "3.49"),
+        (TaxaCartao.FORMA_CREDITO, 2, "5.19"),
+        (TaxaCartao.FORMA_CREDITO, 3, "5.99"),
+        (TaxaCartao.FORMA_CREDITO, 21, "19.99"),
+    ]
+    for forma, parcelas, pct in dados:
+        TaxaCartao.objects.create(
+            forma=forma, bandeira=TaxaCartao.BANDEIRA_VISA_MASTER, parcelas=parcelas, percentual=Decimal(pct)
+        )
+
+
+class CalcularParcelaCartaoTests(TestCase):
+    """Fórmula verificada manualmente contra a planilha oficial Intelbras
+    (base R$750,00, bandeira Visa/Master) antes de escrever este teste:
+    débito 1,29% -> R$759,80; 2x 5,19% -> R$791,06/2=R$395,53;
+    21x 19,99% -> R$937,38/21=R$44,64. Fórmula: valor/(1-taxa%), NÃO
+    valor*(1+taxa%) — as duas contas dão resultados próximos mas diferentes,
+    e só a primeira bate com o número real da Intelbras."""
+
+    def setUp(self) -> None:
+        _seed_taxas_visa_master()
+
+    def test_valor_1x_bate_com_a_planilha_oficial(self) -> None:
+        resultado = calcular_parcela_cartao(Decimal("750.00"), TaxaCartao.BANDEIRA_VISA_MASTER)
+        linha_1x = next(r for r in resultado if r["parcelas"] == 1)
+        self.assertEqual(linha_1x["valor_total"], Decimal("777.12"))
+
+    def test_valor_2x_bate_com_a_planilha_oficial(self) -> None:
+        resultado = calcular_parcela_cartao(Decimal("750.00"), TaxaCartao.BANDEIRA_VISA_MASTER)
+        linha_2x = next(r for r in resultado if r["parcelas"] == 2)
+        self.assertEqual(linha_2x["valor_total"], Decimal("791.06"))
+        self.assertEqual(linha_2x["valor_parcela"], Decimal("395.53"))
+
+    def test_valor_21x_bate_com_a_planilha_oficial(self) -> None:
+        resultado = calcular_parcela_cartao(Decimal("750.00"), TaxaCartao.BANDEIRA_VISA_MASTER)
+        linha_21x = next(r for r in resultado if r["parcelas"] == 21)
+        self.assertEqual(linha_21x["valor_total"], Decimal("937.38"))
+        self.assertEqual(linha_21x["valor_parcela"], Decimal("44.64"))
+
+    def test_formula_nao_e_multiplicar_pela_taxa(self) -> None:
+        """Trava a regressão do erro mais fácil de cometer aqui: usar
+        valor*(1+taxa) em vez de valor/(1-taxa). Pra 21x (19,99%), a conta
+        errada daria R$899,93 — bem diferente do R$937,38 real."""
+        resultado = calcular_parcela_cartao(Decimal("750.00"), TaxaCartao.BANDEIRA_VISA_MASTER)
+        linha_21x = next(r for r in resultado if r["parcelas"] == 21)
+        formula_errada = Decimal("750.00") * (Decimal("1") + Decimal("19.99") / 100)
+        self.assertNotEqual(linha_21x["valor_total"], formula_errada.quantize(Decimal("0.01")))
+
+    def test_valor_base_zero_ou_negativo_retorna_vazio(self) -> None:
+        self.assertEqual(calcular_parcela_cartao(Decimal("0"), TaxaCartao.BANDEIRA_VISA_MASTER), [])
+        self.assertEqual(calcular_parcela_cartao(Decimal("-10"), TaxaCartao.BANDEIRA_VISA_MASTER), [])
+
+    def test_bandeira_sem_taxa_cadastrada_retorna_vazio(self) -> None:
+        self.assertEqual(calcular_parcela_cartao(Decimal("750.00"), TaxaCartao.BANDEIRA_ELO), [])
+
+    def test_resultado_ordenado_por_quantidade_de_parcelas(self) -> None:
+        resultado = calcular_parcela_cartao(Decimal("750.00"), TaxaCartao.BANDEIRA_VISA_MASTER)
+        self.assertEqual([r["parcelas"] for r in resultado], [1, 2, 3, 21])
+
+
+class SeedTaxasCartaoTests(TestCase):
+    def test_comando_cria_87_linhas(self) -> None:
+        call_command("seed_taxas_cartao")
+        self.assertEqual(TaxaCartao.objects.count(), 87)
+
+    def test_comando_e_idempotente(self) -> None:
+        call_command("seed_taxas_cartao")
+        call_command("seed_taxas_cartao")
+        self.assertEqual(TaxaCartao.objects.count(), 87)
+
+    def test_amex_e_hiper_nao_tem_linha_de_debito(self) -> None:
+        call_command("seed_taxas_cartao")
+        self.assertFalse(
+            TaxaCartao.objects.filter(
+                forma=TaxaCartao.FORMA_DEBITO, bandeira__in=[TaxaCartao.BANDEIRA_AMEX, TaxaCartao.BANDEIRA_HIPER]
+            ).exists()
+        )
+
+
+class ResumoFechamentoComCartaoTests(TestCase):
+    """Integração via HTTP do bloco de parcelamento no card de resumo."""
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.modulo = _modulo()
+        cls.proposta = PropostaSolar.objects.create(
+            cliente=_cliente(), consumo_medio_kwh=600, hsp=Decimal("5.50"),
+            fator_eficiencia=Decimal("0.75"), potencia_kwp=Decimal("4.880"),
+            quantidade_modulos=8, modulo=cls.modulo, valor_instalacao=Decimal("5000.00"),
+        )
+        ItemPropostaSolar.objects.create(
+            proposta=cls.proposta, modulo=cls.modulo, quantidade=8,
+            preco_venda_snapshot=Decimal("885.125"), preco_custo_snapshot=Decimal("700"),
+            data_referencia_preco=date.today(),
+        )
+        # valor_equipamentos = 8 * 885.125 = 7081.00 | valor_total = 7081 + 5000 = 12081.00
+        cls.user = User.objects.create_user(username="vend_cartao", password="senha-de-teste")
+        cls.user.groups.add(Group.objects.get_or_create(name=GRUPO_ADMIN)[0])
+
+    def setUp(self) -> None:
+        self.client.force_login(self.user)
+        _seed_taxas_visa_master()
+
+    def test_padrao_e_visa_master_com_entrada(self) -> None:
+        resposta = self.client.get(reverse("solar:detalhe", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn('value="visa_master" selected', corpo)
+        self.assertIn('value="1" selected', corpo)
+        self.assertIn("Entrada de R$ 5000,00", corpo)
+
+    def test_sem_entrada_financia_o_valor_total(self) -> None:
+        resposta = self.client.get(
+            reverse("solar:resumo_fechamento", args=[self.proposta.pk]), {"com_entrada": "0"}
+        )
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn("Parcelamento de 100% no cartão", corpo)
+        self.assertNotIn("Entrada de R$", corpo)
+        # 1x sobre 12081.00 a 3.49% = 12081/0.9651 = 12517.87 (conferido: 0.9651*12517.87 = 12081.00)
+        self.assertIn("R$ 12517,87", corpo)
+
+    def test_bandeira_invalida_cai_para_visa_master(self) -> None:
+        resposta = self.client.get(
+            reverse("solar:resumo_fechamento", args=[self.proposta.pk]), {"bandeira": "bandeira-que-nao-existe"}
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        corpo = resposta.content.decode("utf-8")
+        self.assertIn('value="visa_master" selected', corpo)
+
+    def test_tabela_completa_de_2x_a_21x_aparece(self) -> None:
+        """Diferente do PDF (que privilegia enxugar), o resumo de WhatsApp
+        mostra a tabela cheia — decisão explícita do usuário."""
+        call_command("seed_taxas_cartao")
+        resposta = self.client.get(reverse("solar:detalhe", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        for parcelas in (2, 12, 21):
+            self.assertIn(f"{parcelas}x\t", corpo)

@@ -26,8 +26,9 @@ from ..models import (
     ModuloFotovoltaico,
     PrecoEquipamentoSolar,
     PropostaSolar,
+    TaxaCartao,
 )
-from ._helpers import calcular_kwp, inversores_compativeis
+from ._helpers import calcular_kwp, calcular_parcela_cartao, inversores_compativeis
 
 # ── CRUD de Propostas ─────────────────────────────────────────────────────────
 
@@ -186,6 +187,11 @@ class PropostaSolarDetailView(LoginRequiredMixin, DetailView):
     def get_queryset(self):
         return super().get_queryset().select_related("cliente").prefetch_related("ordens_servico__tecnico")
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(_contexto_resumo_fechamento(self.object))
+        return ctx
+
 
 @login_required
 def proposta_print(request: HttpRequest, pk: int) -> HttpResponse:
@@ -212,6 +218,48 @@ def proposta_print(request: HttpRequest, pk: int) -> HttpResponse:
         "solar/proposta_print.html",
         {"proposta": proposta, "itens": itens},
     )
+
+
+def _contexto_resumo_fechamento(proposta: PropostaSolar, bandeira: str | None = None, com_entrada: bool = True) -> dict:
+    """Contexto do bloco "Resumo para fechamento" — compartilhado entre o
+    primeiro carregamento da página (PropostaSolarDetailView) e as trocas
+    via HTMX (resumo_fechamento), pra não duplicar a conta em dois lugares.
+
+    "Com entrada" usa `valor_instalacao` como entrada — decisão do usuário
+    de não expor ao cliente que a entrada É a mão de obra, só que existe
+    uma entrada. O restante (valor_equipamentos) vai pro cartão.
+    """
+    if bandeira not in dict(TaxaCartao.BANDEIRA_CHOICES):
+        bandeira = TaxaCartao.BANDEIRA_VISA_MASTER
+
+    entrada = proposta.valor_instalacao if com_entrada else Decimal("0")
+    valor_financiado = proposta.valor_total - entrada
+    parcelas_cartao = calcular_parcela_cartao(valor_financiado, bandeira) if valor_financiado > 0 else []
+
+    return {
+        "bandeira": bandeira,
+        "bandeira_choices": TaxaCartao.BANDEIRA_CHOICES,
+        "com_entrada": com_entrada,
+        "entrada": entrada,
+        "valor_financiado": valor_financiado,
+        "parcelas_cartao": parcelas_cartao,
+    }
+
+
+@login_required
+def resumo_fechamento(request: HttpRequest, pk: int) -> HttpResponse:
+    """Recalcula o bloco de parcelamento no cartão do "Resumo para
+    fechamento" — chamado via HTMX ao trocar bandeira ou o toggle de
+    entrada. Retorna só o partial (controles + textarea), não a página
+    inteira."""
+    proposta = get_object_or_404(PropostaSolar.objects.select_related("cliente", "modulo"), pk=pk)
+
+    bandeira = request.GET.get("bandeira", TaxaCartao.BANDEIRA_VISA_MASTER)
+    com_entrada = request.GET.get("com_entrada", "1") == "1"
+    ctx = _contexto_resumo_fechamento(proposta, bandeira, com_entrada)
+    ctx["proposta"] = proposta
+
+    return render(request, "solar/_resumo_fechamento.html", ctx)
 
 
 class PropostaSolarDeleteView(LoginRequiredMixin, DeleteView):

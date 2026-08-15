@@ -41,4 +41,5 @@ from .propostas import (  # noqa: F401
     enviar_proposta,
     proposta_print,
     reabrir_proposta,
+    resumo_fechamento,
 )

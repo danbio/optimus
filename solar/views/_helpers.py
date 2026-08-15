@@ -7,6 +7,7 @@ from ..models import (
     EstruturaFixacao,
     Inversor,
     ModuloFotovoltaico,
+    TaxaCartao,
 )
 
 
@@ -58,6 +59,43 @@ def inversores_compativeis(potencia_kwp: Decimal | float, faixa_min_pct: Decimal
         )
 
     resultado.sort(key=lambda r: (not r["compativel"], abs(r["ratio_pct"] - 100)))
+    return resultado
+
+
+def calcular_parcela_cartao(valor_base: Decimal, bandeira: str) -> list[dict]:
+    """Simula o parcelamento no cartão pra uma bandeira, no modelo "repassar
+    ao portador": o cliente paga o acréscimo, a Optimus recebe `valor_base`
+    cheio. Retorna crédito à vista (1x) e 2x a 21x, cada um com o valor
+    total com acréscimo e o valor da parcela.
+
+    Fórmula verificada contra a tabela oficial Intelbras (base R$750,00):
+        valor_com_acrescimo = valor_base / (1 - percentual/100)
+        valor_da_parcela = valor_com_acrescimo / parcelas
+    NÃO é `valor_base * (1 + percentual/100)` — essa conta dá um valor
+    menor e não bate com a planilha de referência.
+    """
+    if not valor_base or valor_base <= 0:
+        return []
+
+    taxas = TaxaCartao.objects.filter(
+        forma=TaxaCartao.FORMA_CREDITO, bandeira=bandeira
+    ).order_by("parcelas")
+
+    resultado = []
+    for taxa in taxas:
+        fator = Decimal("1") - (taxa.percentual / Decimal("100"))
+        if fator <= 0:
+            continue  # taxa >= 100% não faz sentido matematicamente, ignora
+        valor_com_acrescimo = valor_base / fator
+        valor_parcela = valor_com_acrescimo / taxa.parcelas
+        resultado.append(
+            {
+                "parcelas": taxa.parcelas,
+                "percentual": taxa.percentual,
+                "valor_total": valor_com_acrescimo.quantize(Decimal("0.01")),
+                "valor_parcela": valor_parcela.quantize(Decimal("0.01")),
+            }
+        )
     return resultado
 
 

@@ -47,34 +47,8 @@
   </div>
 </div>
 
-<div class="card">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-whatsapp"></i> Resumo para fechamento (copiar e enviar)</span>
-    <button type="button" class="btn-primary btn-sm" id="btn-copiar-resumo" onclick="copiarResumoProposta()">
-      <i class="bi bi-clipboard"></i> Copiar
-    </button>
-  </div>
-  <div class="card-body">
-    <textarea id="resumo-proposta" class="form-control" rows="11" readonly
-      style="font-family: ui-monospace, Consolas, monospace; font-size: 13px; white-space: pre-wrap;">
-Pré Projeto: {{ proposta.cliente.nome }}
-
-Geração Pretendida: {{ proposta.geracao_mensal_kwh }} kWh/mês
-
-{% if proposta.modulo %}{{ proposta.quantidade_modulos }} módulos {{ proposta.modulo.potencia_wp }}W {{ proposta.modulo.fabricante }}{% endif %}{% if proposta.inversor_principal %} + {{ proposta.quantidade_inversores }} inversor {{ proposta.inversor_principal.potencia_kw }}kW {{ proposta.inversor_principal.fabricante }}{% endif %}
-
-Valor do gerador fotovoltaico com mão de obra de instalação, frete, projeto elétrico, material elétrico, aplicativo de monitoramento e garantia de eficiência de 25 anos. (Tudo por nossa conta)
-R$ {{ proposta.valor_total|floatformat:2 }}
-
-Forma de pagamento:
-Valor à vista: R$ {{ proposta.valor_total|floatformat:2 }}
-
-Proposta válida até {{ proposta.validade|date:"d/m/Y" }}.</textarea>
-    <small style="color: var(--texto-corpo); display: block; margin-top: 6px;">
-      Gerado a partir dos dados da proposta — revise antes de enviar. Ainda não
-      inclui financiamento/cartão parcelado (próxima etapa).
-    </small>
-  </div>
+<div class="card" id="resumo-fechamento-card">
+  {% include "solar/_resumo_fechamento.html" %}
 </div>
 
 <div class="d-flex gap-2" style="flex-wrap: wrap; align-items: flex-start;">
