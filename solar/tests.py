@@ -719,7 +719,7 @@ class PropostaPrintTests(TestCase):
 
         self.assertIn(self.proposta.numero, corpo)
         self.assertIn(self.proposta.cliente.nome, corpo)
-        self.assertIn("Total", corpo)
+        self.assertIn("R$ 12.000,00", corpo)  # valor total da proposta
 
     def test_tabela_de_equipamentos_lista_os_itens(self) -> None:
         resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
@@ -738,8 +738,24 @@ class PropostaPrintTests(TestCase):
         self.assertNotIn("Subtotal", corpo)
         # Preço por item seria 600 (módulo) ou 4000 (inversor) — nenhum dos
         # dois deve aparecer fora da seção de Investimento (que soma tudo).
+        # Com USE_THOUSAND_SEPARATOR, 4000 renderiza "4.000,00": a asserção
+        # antiga ("R$ 4000,00") passou a nunca casar, virando teste vazio.
         self.assertNotIn("R$ 600,00", corpo)
-        self.assertNotIn("R$ 4000,00", corpo)
+        self.assertNotIn("R$ 4.000,00", corpo)
+
+    def test_investimento_mostra_so_o_total(self) -> None:
+        """O cliente vê um preço único — sem quebra entre equipamento e mão
+        de obra. Decisão de negócio do usuário."""
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        # itens: 10×600 + 1×4000 = 10.000 de equipamento, 2.000 de instalação
+        self.assertEqual(self.proposta.valor_total, Decimal("12000.00"))
+        self.assertIn("Valor do Investimento", corpo)
+        self.assertIn("R$ 12.000,00", corpo)
+        self.assertNotIn("R$ 10.000,00", corpo)
+        self.assertNotIn("R$ 2.000,00", corpo)
+        self.assertNotIn("Instalação e mão de obra", corpo)
 
     def test_proposta_inexistente_retorna_404(self) -> None:
         resposta = self.client.get(reverse("solar:imprimir", args=[99999]))

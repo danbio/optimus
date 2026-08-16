@@ -19,10 +19,14 @@
 | PostgreSQL via DATABASE_URL | ✅ Feito (2026-08-09) | — |
 | Backup do banco (`backup_db`) | ✅ Feito (2026-08-09) | — (falta agendar execução em produção) |
 | Mojibake em 24 produtos do estoque | 🔴 Pendente | Nada, mas os nomes aparecem errados na tela |
+| `Inversor.potencia_kw = 6000.00` no SAJ 6K-R5 | 🔴 **Pendente — aparece no PDF do cliente** | Deveria ser `6.00` (o "6K" do modelo é 6 kW). Sai como "6.000,00kW" na proposta impressa. Não é bug de código, é dado errado no cadastro — mas a sugestão de inversor compatível (relação CC:CA) também usa esse campo |
 | Hospedagem com suporte a Python | 🔴 Pendente | **Implantação em produção** |
 | PDF de propostas | ✅ Feito (2026-08-13) | `@media print` + `window.print()`, sem lib externa — ver skill solar-domain §12 |
 | Sugestão automática de inversor compatível | ✅ Feito (2026-08-13) | Relação CC:CA, faixa configurável em `/configuracoes/` — ver skill solar-domain §2.1 |
 | Resumo de fechamento (copiar/colar p/ WhatsApp) | ✅ Feito (2026-08-13) | Card em `proposta_detail.html` — geração, equipamento, valor à vista. Ainda sem financiamento/cartão |
+| **Composição de preço incompleta nas propostas** | 🔴 **Pendente — afeta proposta que vai pro cliente** | Faltam estrutura de fixação, cabos e conectores nos itens. O valor total sai **subestimado**, e como o payback divide o investimento pela economia, ele sai **otimista demais** (ex.: SOL-202608-0006 fechou em 1 ano e 1 mês). O cálculo de retorno está certo; o que entra nele é que não. |
+| Tabela de preços desatualizada | 🔴 Pendente | `PrecoEquipamentoSolar` com preços vencidos — mesma consequência do item acima |
+| Alimentar preços automaticamente (API de fornecedor / scraping) | 🟡 Planejado | Intenção do usuário (2026-08-16) para resolver os dois itens acima de vez, em vez de digitação manual. Ainda sem fornecedor/método definido |
 | Payback / economia conforme Lei 14.300 | ✅ Feito (2026-08-16) | Motor em `solar/services.py`, verificado contra fatura real da Energisa TO. Fio B gradual, custo de disponibilidade, COSIP e autoconsumo simultâneo — ver skill solar-domain §8 |
 | Formatação de moeda `R$ 1.234.567,89` | ✅ Feito (2026-08-16) | `USE_THOUSAND_SEPARATOR=True` — vale para o app inteiro. **Cuidado:** localiza todo número no template, inclusive anos e coordenadas de SVG (ver AGENTS.md) |
 | Financiamento / parcelamento no cartão | ✅ Feito (2026-08-15) | Modelo `TaxaCartao` + admin + seed com tabela real Intelbras (87 linhas) + resumo de fechamento com bandeira/entrada via HTMX — ver skill solar-domain §13. Financiamento bancário segue fora de escopo (lógica própria) |

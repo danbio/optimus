@@ -97,20 +97,17 @@
   </table>
 </div>
 
+{% comment %}
+  Sem quebra entre equipamento e mão de obra: o cliente vê um preço único.
+  Decisão de negócio do usuário, mesma lógica que já tira o preço por item
+  da tabela de equipamentos.
+{% endcomment %}
 <div class="doc-secao">
-  <h2>Investimento</h2>
-  <table class="tabela" style="max-width: 380px;">
-    <tbody>
-      <tr><td>Equipamentos</td><td style="text-align: right;">R$ {{ proposta.valor_equipamentos|floatformat:2 }}</td></tr>
-      <tr><td>Instalação e mão de obra</td><td style="text-align: right;">R$ {{ proposta.valor_instalacao|floatformat:2 }}</td></tr>
-    </tbody>
-    <tfoot>
-      <tr style="background: var(--fundo-alt);">
-        <td style="font-weight: 700;">Total</td>
-        <td style="text-align: right; font-weight: 700; font-size: 16px; color: var(--verde);">R$ {{ proposta.valor_total|floatformat:2 }}</td>
-      </tr>
-    </tfoot>
-  </table>
+  <h2>Valor do Investimento</h2>
+  <div class="doc-investimento">
+    <div class="rotulo">Sistema completo, instalado e em operação</div>
+    <div class="valor">R$ {{ proposta.valor_total|floatformat:2 }}</div>
+  </div>
 </div>
 
 {% if retorno %}

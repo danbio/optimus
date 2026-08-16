@@ -100,6 +100,30 @@ body {
   margin-top: 2px;
 }
 
+/* Valor único da proposta — sem discriminar equipamento e mão de obra. */
+.doc-investimento {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+  border: 1px solid var(--borda-fraca);
+  border-left: 4px solid var(--verde);
+  border-radius: 6px;
+  background: var(--fundo-alt);
+  padding: 14px 18px;
+}
+.doc-investimento .rotulo {
+  font-size: 13px;
+  color: var(--texto-corpo);
+}
+.doc-investimento .valor {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--verde);
+  white-space: nowrap;
+}
+
 /* Gráfico de barras da economia anual — SVG inline gerado no servidor
    (solar/services.py::grafico_economia_anual), sem lib de gráfico. */
 .doc-grafico {
