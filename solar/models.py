@@ -7,6 +7,11 @@ from django.db import IntegrityError, models
 from clientes.models import Cliente
 from core.models import BaseModel
 
+# Dias reais de cada mês (ano comum). A conta antiga usava 30 fixo, o que
+# subestima a geração em ~1,4% no acumulado do ano.
+DIAS_DO_MES = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+NOMES_DOS_MESES = ("Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez")
+
 
 class ModuloFotovoltaico(BaseModel):
     fabricante = models.CharField(max_length=100, verbose_name="fabricante")
@@ -252,6 +257,55 @@ class PrecoEquipamentoSolar(BaseModel):
         return (
             qs.filter(vigente_desde__lte=data).filter(models.Q(vigente_ate__isnull=True) | models.Q(vigente_ate__gte=data)).order_by("-vigente_desde").first()
         )
+
+
+class Municipio(BaseModel):
+    """Município com a irradiação solar do local.
+
+    Mora no app `solar` porque existe para dimensionar sistema — os campos
+    de HSP são o motivo dele. Se um dia outro app precisar de município
+    genérico, aí sim vale promover para `core`.
+
+    O HSP mensal é climatologia (média de longo prazo) da NASA POWER, então
+    não expira: sincroniza uma vez e fica.
+    """
+
+    codigo_ibge = models.IntegerField(unique=True, verbose_name="código IBGE")
+    nome = models.CharField(max_length=120, verbose_name="nome")
+    uf = models.CharField(max_length=2, verbose_name="UF")
+
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="latitude")
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="longitude")
+
+    hsp_mensal = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="HSP por mês (kWh/m²/dia)",
+        help_text='Climatologia NASA POWER, no formato {"1": 5.39, ..., "12": 5.46}.',
+    )
+    hsp_anual = models.DecimalField(
+        max_digits=4, decimal_places=2, null=True, blank=True, verbose_name="HSP médio anual (h/dia)"
+    )
+    sincronizado_em = models.DateTimeField(null=True, blank=True, verbose_name="HSP sincronizado em")
+
+    class Meta:
+        verbose_name = "município"
+        verbose_name_plural = "municípios"
+        ordering = ["uf", "nome"]
+
+    def __str__(self):
+        return f"{self.nome}/{self.uf}"
+
+    @property
+    def tem_hsp(self) -> bool:
+        return bool(self.hsp_anual and self.hsp_mensal)
+
+    def hsp_do_mes(self, mes: int) -> Decimal | None:
+        """HSP de um mês (1–12). O JSON volta do banco com chave string."""
+        if not self.hsp_mensal:
+            return None
+        valor = self.hsp_mensal.get(str(mes), self.hsp_mensal.get(mes))
+        return Decimal(str(valor)) if valor is not None else None
 
 
 class Distribuidora(BaseModel):
@@ -525,6 +579,17 @@ class PropostaSolar(BaseModel):
         verbose_name="distribuidora do cliente",
         help_text="Define a tarifa homologada e o Fio B usados na análise de retorno, direto da ANEEL.",
     )
+    municipio = models.ForeignKey(
+        Municipio,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="município da instalação",
+        help_text=(
+            "Onde o gerador vai ser instalado — nem sempre é onde o cliente "
+            "mora. Define o HSP e a curva de geração mês a mês."
+        ),
+    )
 
     # Financeiro
     valor_instalacao = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="valor da instalação (R$)")
@@ -606,13 +671,61 @@ class PropostaSolar(BaseModel):
         return round(self.quantidade_modulos * self.modulo.area_m2, 2)
 
     @property
+    def geracao_mensal_serie(self):
+        """Geração projetada mês a mês, em kWh.
+
+        Só existe quando a proposta tem município com HSP sincronizado —
+        é o HSP daquele mês, no local da instalação, com os dias reais do
+        mês (não 30 fixo). Retorna None sem esses dados, e aí o resto do
+        sistema cai na média anual.
+        """
+        if not self.municipio_id or not self.potencia_real_kwp:
+            return None
+        municipio = self.municipio
+        if not municipio.tem_hsp:
+            return None
+
+        potencia = Decimal(str(self.potencia_real_kwp))
+        fator = Decimal(str(self.fator_eficiencia))
+
+        serie = []
+        for mes in range(1, 13):
+            hsp = municipio.hsp_do_mes(mes)
+            if hsp is None:
+                return None
+            dias = Decimal(DIAS_DO_MES[mes - 1])
+            serie.append(
+                {
+                    "mes": mes,
+                    "nome": NOMES_DOS_MESES[mes - 1],
+                    "hsp": hsp,
+                    "kwh": (potencia * hsp * dias * fator).quantize(Decimal("1")),
+                }
+            )
+        return serie
+
+    @property
+    def geracao_anual_kwh(self):
+        serie = self.geracao_mensal_serie
+        if serie:
+            return sum(item["kwh"] for item in serie)
+        return Decimal(str(self.geracao_mensal_kwh)) * 12
+
+    @property
     def geracao_mensal_kwh(self):
-        """Projeção técnica de geração (kWp × HSP × 30 dias × fator de
-        eficiência) — não é uma promessa financeira, é só a conversão da
-        potência dimensionada em energia esperada. Usada no PDF e no resumo
-        de fechamento (ver proposta_detail.html)."""
+        """Projeção técnica de geração mensal média, em kWh.
+
+        Com município sincronizado usa a média real dos 12 meses (HSP de
+        cada mês × dias daquele mês); sem ele, cai na conta antiga
+        kWp × HSP × 30 × fator. Não é promessa financeira, é a conversão da
+        potência dimensionada em energia esperada."""
         if not self.potencia_real_kwp:
             return 0
+
+        serie = self.geracao_mensal_serie
+        if serie:
+            return int(sum(item["kwh"] for item in serie) / 12)
+
         return round(float(self.potencia_real_kwp) * float(self.hsp) * 30 * float(self.fator_eficiencia))
 
     @property

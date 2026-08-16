@@ -229,6 +229,73 @@ def grafico_economia_anual(
     }
 
 
+def grafico_geracao_mensal(
+    serie: list[dict] | None,
+    largura: float = 680.0,
+    altura: float = 150.0,
+) -> dict | None:
+    """Geometria do gráfico de geração mês a mês.
+
+    Mesmo padrão de `grafico_economia_anual`: caminhos SVG prontos, números
+    já como string (o template localizaria e quebraria o SVG — ver
+    AGENTS.md). Todo mês leva rótulo, porque são só 12 barras e o valor de
+    cada mês é justamente o que interessa mostrar.
+    """
+    if not serie:
+        return None
+
+    valores = [float(item["kwh"]) for item in serie]
+    maximo = max(valores)
+    if maximo <= 0:
+        return None
+
+    total = len(serie)
+    espacamento = 4.0
+    passo = largura / total
+    largura_barra = max(passo - espacamento, 1.0)
+    media = sum(valores) / total
+
+    barras = []
+    for indice, item in enumerate(serie):
+        altura_barra = (float(item["kwh"]) / maximo) * altura
+        x = indice * passo
+        y = altura - altura_barra
+        raio = min(4.0, largura_barra / 2, altura_barra / 2) if altura_barra > 0 else 0.0
+        direita = x + largura_barra
+        barras.append(
+            {
+                "mes": item["nome"],
+                "kwh": item["kwh"],
+                "hsp": item["hsp"],
+                "centro_x": f"{x + largura_barra / 2:.2f}",
+                "rotulo_y": f"{y - 6:.2f}",
+                "path": (
+                    f"M{x:.2f},{altura:.2f} "
+                    f"L{x:.2f},{y + raio:.2f} "
+                    f"Q{x:.2f},{y:.2f} {x + raio:.2f},{y:.2f} "
+                    f"L{direita - raio:.2f},{y:.2f} "
+                    f"Q{direita:.2f},{y:.2f} {direita:.2f},{y + raio:.2f} "
+                    f"L{direita:.2f},{altura:.2f} Z"
+                ),
+            }
+        )
+
+    margem_topo = 16.0
+    margem_base = 18.0
+    y_media = altura - (media / maximo) * altura
+
+    return {
+        "view_box": f"0 {-margem_topo:.0f} {largura:.0f} {altura + margem_topo + margem_base:.0f}",
+        "largura": f"{largura:.0f}",
+        "base_y": f"{altura:.0f}",
+        "mes_y": f"{altura + 13:.0f}",
+        "media_y": f"{y_media:.2f}",
+        "media_rotulo_y": f"{y_media - 4:.2f}",
+        "media_kwh": int(round(media)),
+        "barras": barras,
+    }
+
+
 def projetar_retorno(
     *,
     valor_investimento: Decimal,

@@ -2,12 +2,15 @@ from datetime import date
 
 from django import forms
 
+from clientes.models import Cliente
+
 from .models import (
     Distribuidora,
     EstruturaFixacao,
     Inversor,
     MateriaisEletricos,
     ModuloFotovoltaico,
+    Municipio,
     PrecoEquipamentoSolar,
     PropostaSolar,
 )
@@ -20,6 +23,7 @@ class PropostaSolarForm(forms.ModelForm):
             "cliente",
             "consumo_medio_kwh",
             "modulo",
+            "municipio",
             "hsp",
             "fator_eficiencia",
             "valor_instalacao",
@@ -43,6 +47,21 @@ class PropostaSolarForm(forms.ModelForm):
         # entra na proposta é o que está na tabela de Itens; se houver um item
         # de categoria Módulo lá, ele tem prioridade sobre este campo no save.
         self.fields["modulo"].queryset = ModuloFotovoltaico.objects.filter(ativo=True)
+
+        # Só municípios com HSP sincronizado: escolher um sem HSP não
+        # adiantaria nada e o vendedor não teria como saber disso na tela.
+        self.fields["municipio"].required = False
+        self.fields["municipio"].queryset = Municipio.objects.filter(hsp_anual__isnull=False)
+        self.fields["municipio"].empty_label = "— usar o HSP digitado ao lado —"
+
+        # Proposta nova herda o município do endereço do cliente; o vendedor
+        # troca se o gerador for para outro local (sítio, segunda casa...).
+        if not self.instance.pk and not self.initial.get("municipio"):
+            sugerido = self._municipio_do_cliente()
+            if sugerido:
+                self.initial["municipio"] = sugerido.pk
+                self.initial.setdefault("hsp", sugerido.hsp_anual)
+
         self.fields["hsp"].widget.attrs.update({"placeholder": "5.50", "inputmode": "decimal", "step": "0.01"})
         self.fields["fator_eficiencia"].widget.attrs.update({"placeholder": "0.75", "inputmode": "decimal", "step": "0.01"})
 
@@ -64,6 +83,57 @@ class PropostaSolarForm(forms.ModelForm):
                 "placeholder": "Condições comerciais, observações técnicas...",
             }
         )
+
+
+    def _municipio_do_cliente(self):
+        """Casa a cidade escrita no cadastro do cliente com um município.
+
+        O cadastro guarda cidade como texto livre, então o casamento é por
+        nome + UF, sem acento e sem caixa. Não achando, devolve None e o
+        vendedor escolhe na mão — melhor que arriscar o município errado.
+        """
+        cliente = self.initial.get("cliente") or getattr(self.instance, "cliente", None)
+        if isinstance(cliente, int):
+            cliente = Cliente.objects.filter(pk=cliente).first()
+        if not cliente or not cliente.cidade or not cliente.estado:
+            return None
+
+        return (
+            Municipio.objects.filter(
+                uf__iexact=cliente.estado.strip(),
+                nome__unaccent__iexact=cliente.cidade.strip(),
+                hsp_anual__isnull=False,
+            ).first()
+            if _tem_unaccent()
+            else _casar_por_nome(cliente)
+        )
+
+
+def _tem_unaccent() -> bool:
+    """`__unaccent` exige a extensão do PostgreSQL; em SQLite não existe."""
+    from django.db import connection
+
+    return connection.vendor == "postgresql"
+
+
+def _casar_por_nome(cliente):
+    """Fallback sem `unaccent`: normaliza em Python e compara.
+
+    Roda sobre os municípios da UF do cliente (algumas centenas no pior
+    caso), não sobre o país inteiro.
+    """
+    alvo = _normalizar(cliente.cidade)
+    for municipio in Municipio.objects.filter(uf__iexact=cliente.estado.strip(), hsp_anual__isnull=False):
+        if _normalizar(municipio.nome) == alvo:
+            return municipio
+    return None
+
+
+def _normalizar(texto: str) -> str:
+    import unicodedata
+
+    sem_acento = unicodedata.normalize("NFKD", texto.strip())
+    return "".join(c for c in sem_acento if not unicodedata.combining(c)).casefold()
 
 
 class ItemPropostaSolarForm(forms.ModelForm):

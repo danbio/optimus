@@ -14,6 +14,7 @@ from core.permissoes import GRUPO_ADMIN
 
 from .admin import PrecoEquipamentoSolarAdmin
 from .aneel import consolidar_tarifas
+from .forms import PropostaSolarForm
 from .models import (
     Distribuidora,
     EstruturaFixacao,
@@ -21,6 +22,7 @@ from .models import (
     ItemPropostaSolar,
     MateriaisEletricos,
     ModuloFotovoltaico,
+    Municipio,
     PrecoEquipamentoSolar,
     PropostaSolar,
     TarifaDistribuidora,
@@ -30,6 +32,7 @@ from .services import (
     aplicar_tributos,
     formatar_prazo,
     grafico_economia_anual,
+    grafico_geracao_mensal,
     percentual_fio_b,
     projetar_retorno,
 )
@@ -966,6 +969,194 @@ class FormatarPrazoTests(TestCase):
     def test_nao_sobra_decimal_no_texto(self) -> None:
         """Regressão do formato antigo, que saía como "1,1 anos"."""
         self.assertNotIn(",", formatar_prazo(Decimal("1.1")))
+
+
+def _municipio(nome="Gurupi", uf="TO", codigo=1709500, hsp=None):
+    """Município com HSP constante em todos os meses, salvo indicação."""
+    if hsp is None:
+        hsp = {str(m): "5.00" for m in range(1, 13)}
+    return Municipio.objects.create(
+        codigo_ibge=codigo, nome=nome, uf=uf,
+        latitude=Decimal("-11.65"), longitude=Decimal("-48.84"),
+        hsp_mensal=hsp, hsp_anual=Decimal("5.00"),
+    )
+
+
+class MunicipioTests(TestCase):
+    def test_hsp_do_mes_le_chave_string_do_json(self) -> None:
+        """O JSONField volta do banco com as chaves em string."""
+        municipio = _municipio(hsp={str(m): f"{m}.00" for m in range(1, 13)})
+
+        self.assertEqual(municipio.hsp_do_mes(1), Decimal("1.00"))
+        self.assertEqual(municipio.hsp_do_mes(12), Decimal("12.00"))
+
+    def test_sem_hsp_sincronizado(self) -> None:
+        municipio = Municipio.objects.create(codigo_ibge=1, nome="Sem Dados", uf="TO")
+
+        self.assertFalse(municipio.tem_hsp)
+        self.assertIsNone(municipio.hsp_do_mes(1))
+
+
+class GeracaoMensalSerieTests(TestCase):
+    """Curva de geração mês a mês a partir do HSP do local."""
+
+    def setUp(self) -> None:
+        self.modulo = _modulo()  # 400 Wp
+
+    def _proposta_com_municipio(self, hsp=None):
+        proposta = _proposta(self.modulo)  # 10 módulos -> 4,0 kWp, fator 0,75
+        proposta.municipio = _municipio(hsp=hsp)
+        proposta.save()
+        return proposta
+
+    def test_sem_municipio_nao_ha_serie(self) -> None:
+        self.assertIsNone(_proposta(self.modulo).geracao_mensal_serie)
+
+    def test_usa_hsp_do_mes_e_dias_reais(self) -> None:
+        """Janeiro tem 31 dias e fevereiro 28 — com o mesmo HSP, fevereiro
+        gera menos. A conta antiga usava 30 fixo para todo mês."""
+        serie = self._proposta_com_municipio().geracao_mensal_serie
+
+        self.assertEqual(len(serie), 12)
+        # 4,0 kWp × 5,00 HSP × 31 dias × 0,75 = 465
+        self.assertEqual(serie[0]["kwh"], Decimal("465"))
+        # fevereiro: × 28 dias = 420
+        self.assertEqual(serie[1]["kwh"], Decimal("420"))
+        self.assertEqual(serie[0]["nome"], "Jan")
+
+    def test_serie_acompanha_a_sazonalidade_do_hsp(self) -> None:
+        hsp = {str(m): "4.00" for m in range(1, 13)}
+        hsp["9"] = "6.00"  # setembro é o pico no Tocantins
+        serie = self._proposta_com_municipio(hsp=hsp).geracao_mensal_serie
+
+        setembro = next(i for i in serie if i["mes"] == 9)
+        self.assertEqual(max(serie, key=lambda i: i["kwh"]), setembro)
+
+    def test_geracao_mensal_media_vem_da_serie(self) -> None:
+        proposta = self._proposta_com_municipio()
+        serie = proposta.geracao_mensal_serie
+
+        esperado = int(sum(i["kwh"] for i in serie) / 12)
+        self.assertEqual(proposta.geracao_mensal_kwh, esperado)
+
+    def test_media_da_serie_supera_a_conta_antiga_de_30_dias(self) -> None:
+        """Regressão: 30 dias fixos subestimam o ano (365/12 = 30,4)."""
+        proposta = self._proposta_com_municipio()
+        antiga = round(float(proposta.potencia_real_kwp) * 5.00 * 30 * 0.75)
+
+        self.assertGreater(proposta.geracao_mensal_kwh, antiga)
+
+    def test_geracao_anual_soma_os_doze_meses(self) -> None:
+        proposta = self._proposta_com_municipio()
+
+        self.assertEqual(
+            proposta.geracao_anual_kwh,
+            sum(i["kwh"] for i in proposta.geracao_mensal_serie),
+        )
+
+    def test_municipio_sem_hsp_cai_na_conta_antiga(self) -> None:
+        proposta = _proposta(self.modulo)
+        proposta.municipio = Municipio.objects.create(codigo_ibge=2, nome="Sem HSP", uf="TO")
+        proposta.save()
+
+        self.assertIsNone(proposta.geracao_mensal_serie)
+        self.assertEqual(proposta.geracao_mensal_kwh, 495)  # 4,0 × 5,5 × 30 × 0,75
+
+
+class GraficoGeracaoMensalTests(TestCase):
+    def setUp(self) -> None:
+        self.modulo = _modulo()
+        self.proposta = _proposta(self.modulo)
+        self.proposta.municipio = _municipio()
+        self.proposta.save()
+
+    def test_gera_doze_barras_com_rotulo_em_todas(self) -> None:
+        """Só 12 barras: dá pra rotular todas sem virar ruído, e o valor de
+        cada mês é justamente o que interessa."""
+        grafico = grafico_geracao_mensal(self.proposta.geracao_mensal_serie)
+
+        self.assertEqual(len(grafico["barras"]), 12)
+        self.assertEqual(grafico["barras"][0]["mes"], "Jan")
+        self.assertEqual(grafico["barras"][-1]["mes"], "Dez")
+
+    def test_coordenadas_saem_como_string_com_ponto(self) -> None:
+        """Mesma armadilha do outro gráfico: USE_THOUSAND_SEPARATOR
+        localizaria os números e quebraria o SVG."""
+        import re
+
+        grafico = grafico_geracao_mensal(self.proposta.geracao_mensal_serie)
+
+        for chave in ("view_box", "largura", "base_y", "mes_y", "media_y"):
+            self.assertNotIn(",", str(grafico[chave]), msg=chave)
+        for barra in grafico["barras"]:
+            for token in re.findall(r"-?\d[\d.]*", barra["path"]):
+                self.assertIn(".", token)
+
+    def test_media_fica_entre_o_menor_e_o_maior_mes(self) -> None:
+        grafico = grafico_geracao_mensal(self.proposta.geracao_mensal_serie)
+        valores = [b["kwh"] for b in grafico["barras"]]
+
+        self.assertGreaterEqual(grafico["media_kwh"], int(min(valores)))
+        self.assertLessEqual(grafico["media_kwh"], int(max(valores)))
+
+    def test_sem_serie_retorna_none(self) -> None:
+        self.assertIsNone(grafico_geracao_mensal(None))
+        self.assertIsNone(grafico_geracao_mensal([]))
+
+
+class MunicipioHerdadoDoClienteTests(TestCase):
+    """A proposta nova já vem com o município do cliente, mas o vendedor
+    pode trocar — o gerador pode ser para outro endereço."""
+
+    def setUp(self) -> None:
+        self.gurupi = _municipio()
+        self.modulo = _modulo()
+
+    def _cliente_em(self, cidade, estado="TO"):
+        return Cliente.objects.create(
+            tipo="PF", cpf_cnpj="222.222.222-22", nome="Fulano",
+            cidade=cidade, estado=estado,
+        )
+
+    def test_sugere_municipio_a_partir_da_cidade_do_cliente(self) -> None:
+        form = PropostaSolarForm(initial={"cliente": self._cliente_em("Gurupi").pk})
+
+        self.assertEqual(form.initial["municipio"], self.gurupi.pk)
+
+    def test_casamento_ignora_acento_e_caixa(self) -> None:
+        palmas = _municipio(nome="Palmas", codigo=1721000)
+        form = PropostaSolarForm(initial={"cliente": self._cliente_em("PALMAS").pk})
+
+        self.assertEqual(form.initial["municipio"], palmas.pk)
+
+    def test_cidade_desconhecida_nao_chuta_municipio(self) -> None:
+        """Melhor deixar em branco que arriscar o município errado — ele
+        define o HSP e, por consequência, a geração prometida."""
+        form = PropostaSolarForm(initial={"cliente": self._cliente_em("Cidade Inexistente").pk})
+
+        self.assertIsNone(form.initial.get("municipio"))
+
+    def test_nao_confunde_cidades_homonimas_de_outra_uf(self) -> None:
+        form = PropostaSolarForm(initial={"cliente": self._cliente_em("Gurupi", estado="GO").pk})
+
+        self.assertIsNone(form.initial.get("municipio"))
+
+    def test_cliente_sem_cidade_nao_quebra(self) -> None:
+        form = PropostaSolarForm(initial={"cliente": self._cliente_em("").pk})
+
+        self.assertIsNone(form.initial.get("municipio"))
+
+    def test_proposta_existente_nao_tem_o_municipio_sobrescrito(self) -> None:
+        """Editar uma proposta salva não pode puxar o município do cliente
+        por cima da escolha que o vendedor já fez."""
+        outro = _municipio(nome="Porto Nacional", codigo=1718204)
+        proposta = _proposta(self.modulo, cliente=self._cliente_em("Gurupi"))
+        proposta.municipio = outro
+        proposta.save()
+
+        form = PropostaSolarForm(instance=proposta)
+
+        self.assertNotEqual(form.initial.get("municipio"), self.gurupi.pk)
 
 
 class ConsolidarTarifasANEELTests(TestCase):

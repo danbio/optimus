@@ -110,6 +110,36 @@
   </div>
 </div>
 
+{% if grafico_geracao %}
+<div class="doc-secao">
+  <h2>Geração estimada mês a mês</h2>
+  <div style="font-size: 12px; color: var(--texto-corpo); margin: -4px 0 10px;">
+    Projeção para {{ proposta.municipio.nome }}/{{ proposta.municipio.uf }}, a partir da irradiação solar medida
+    no local (NASA POWER). A geração varia ao longo do ano com a estação — a média é
+    <strong>{{ grafico_geracao.media_kwh }} kWh/mês</strong>, e o total do ano fica em
+    <strong>{{ proposta.geracao_anual_kwh|floatformat:0 }} kWh</strong>.
+  </div>
+  {% comment %}
+    Coordenadas vêm prontas como string de services.py — o template
+    localizaria os números e quebraria o SVG (ver AGENTS.md).
+  {% endcomment %}
+  <svg class="doc-grafico" viewBox="{{ grafico_geracao.view_box }}"
+       xmlns="http://www.w3.org/2000/svg" role="img"
+       aria-label="Geração mensal estimada em kWh, de janeiro a dezembro.">
+    <line x1="0" y1="{{ grafico_geracao.base_y }}" x2="{{ grafico_geracao.largura }}" y2="{{ grafico_geracao.base_y }}"
+          stroke="#d6dfe1" stroke-width="1"/>
+    <line x1="0" y1="{{ grafico_geracao.media_y }}" x2="{{ grafico_geracao.largura }}" y2="{{ grafico_geracao.media_y }}"
+          stroke="#8b979f" stroke-width="1" stroke-dasharray="3 3"/>
+    <text x="{{ grafico_geracao.largura }}" y="{{ grafico_geracao.media_rotulo_y }}" class="g-marcador" text-anchor="end">média</text>
+    {% for barra in grafico_geracao.barras %}
+      <path d="{{ barra.path }}" fill="#00a335"/>
+      <text x="{{ barra.centro_x }}" y="{{ barra.rotulo_y }}" class="g-valor" text-anchor="middle">{{ barra.kwh|floatformat:0 }}</text>
+      <text x="{{ barra.centro_x }}" y="{{ grafico_geracao.mes_y }}" class="g-ano" text-anchor="middle">{{ barra.mes }}</text>
+    {% endfor %}
+  </svg>
+</div>
+{% endif %}
+
 {% if retorno %}
 <div class="doc-secao">
   <h2>Retorno do investimento</h2>

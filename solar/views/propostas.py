@@ -28,7 +28,7 @@ from ..models import (
     PropostaSolar,
     TaxaCartao,
 )
-from ..services import grafico_economia_anual
+from ..services import grafico_economia_anual, grafico_geracao_mensal
 from ._helpers import calcular_kwp, calcular_parcela_cartao, inversores_compativeis
 
 # ── CRUD de Propostas ─────────────────────────────────────────────────────────
@@ -221,6 +221,7 @@ def proposta_print(request: HttpRequest, pk: int) -> HttpResponse:
             "itens": itens,
             "retorno": retorno,
             "grafico": grafico_economia_anual(retorno) if retorno else None,
+            "grafico_geracao": grafico_geracao_mensal(proposta.geracao_mensal_serie),
         },
     )
 

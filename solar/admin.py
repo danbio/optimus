@@ -8,10 +8,19 @@ from .models import (
     Inversor,
     MateriaisEletricos,
     ModuloFotovoltaico,
+    Municipio,
     PrecoEquipamentoSolar,
     TarifaDistribuidora,
     TaxaCartao,
 )
+
+
+@admin.register(Municipio)
+class MunicipioAdmin(admin.ModelAdmin):
+    list_display = ["nome", "uf", "codigo_ibge", "hsp_anual", "sincronizado_em"]
+    list_filter = ["uf"]
+    search_fields = ["nome", "codigo_ibge"]
+    readonly_fields = ["hsp_mensal", "hsp_anual", "sincronizado_em", "latitude", "longitude"]
 
 
 @admin.register(Distribuidora)

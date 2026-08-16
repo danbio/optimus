@@ -4,16 +4,45 @@
 
 ---
 
-## 1. Dados climáticos — Tocantins
+## 1. Dados climáticos — HSP por município (automático)
 
-| Parâmetro                     | Valor               |
-| ----------------------------- | ------------------- |
-| HSP padrão (default no model) | **5,50 h/dia**      |
-| Irradiação média              | ~5,2–5,5 kWh/m²/dia |
-| Fator de eficiência padrão    | 0,75 (configurável) |
+**HSP e irradiação diária são a mesma grandeza.** A NASA POWER devolve
+`ALLSKY_SFC_SW_DWN` em kWh/m²/dia; como a irradiância de referência é
+1 kW/m², dividir um pelo outro dá horas — daí "horas de sol pleno". Não é
+conversão, é a mesma coisa lida de outro jeito.
 
-> Referência: CRESESB / Atlas Brasileiro de Energia Solar, Palmas/TO.
-> **Atenção:** O model usa `hsp=5.50` como default — não usar 5,2 de fontes externas.
+`solar/geo.py` + dois comandos:
+
+```bash
+python manage.py importar_municipios --uf TO   # IBGE: nomes + centroides (2 requisições)
+python manage.py sincronizar_hsp --uf TO       # NASA POWER: 1 requisição por município
+```
+
+Os dados ficam em `Municipio` (`hsp_mensal` JSON + `hsp_anual`). É
+climatologia — média de longo prazo — então **não expira**: sincroniza uma
+vez e fica.
+
+| Parâmetro | Valor |
+| --- | --- |
+| HSP padrão do model (fallback) | **5,50 h/dia** |
+| Gurupi/TO medido (NASA POWER) | **5,58 h/dia** |
+| Faixa no Tocantins | 5,14 (Ananás) a 5,72 (Arraias) |
+| Sazonalidade em Gurupi | 5,25 (mai) a 6,17 (set) |
+| Fator de eficiência padrão | 0,75 (configurável) |
+
+> O padrão histórico de 5,50 (CRESESB) bateu com a medição da NASA para
+> Gurupi (5,58) — a premissa que já estava no código estava certa.
+
+Armadilhas já resolvidas em `geo.py`:
+
+- **O IBGE devolve gzip mesmo pedindo `Accept-Encoding: identity`**, e sem
+  marcar `Content-Encoding`. A detecção é pelo número mágico (`\x1f\x8b`),
+  não pelo cabeçalho.
+- **Centroide** sai da média dos vértices da malha do IBGE. Não é o centro
+  geométrico exato, mas dados solares da NASA vêm em células de 1° (~111 km);
+  para Gurupi a média cai a ~25 km do centro urbano e dá o mesmo resultado.
+- **Uma requisição por município** na NASA POWER — uma UF leva minutos. O
+  comando pula quem já tem HSP, a menos que se passe `--refazer`.
 
 ---
 
@@ -194,7 +223,9 @@ observacoes        # TextField (blank)
 @property valor_total          # valor_equipamentos + valor_instalacao
 @property potencia_real_kwp    # quantidade_modulos * modulo.potencia_wp / 1000
 @property area_total_m2        # quantidade_modulos * modulo.area_m2
-@property geracao_mensal_kwh   # potencia_real_kwp * hsp * 30 * fator_eficiencia (projeção técnica)
+@property geracao_mensal_serie # 12 meses: HSP daquele mês × dias reais do mês (None sem município)
+@property geracao_anual_kwh    # soma dos 12 meses, ou média × 12 no fallback
+@property geracao_mensal_kwh   # média real dos 12 meses; sem município, cai em kWp * hsp * 30 * fator
 @property inversor_principal   # primeiro Inversor entre os itens (model não tem FK de inversor
                                 # de referência como tem `modulo` — assume 1 inversor por proposta)
 @property quantidade_inversores  # Sum(quantidade) dos itens que têm inversor
