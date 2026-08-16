@@ -2,7 +2,15 @@ from datetime import date
 
 from django import forms
 
-from .models import EstruturaFixacao, Inversor, MateriaisEletricos, ModuloFotovoltaico, PrecoEquipamentoSolar, PropostaSolar
+from .models import (
+    Distribuidora,
+    EstruturaFixacao,
+    Inversor,
+    MateriaisEletricos,
+    ModuloFotovoltaico,
+    PrecoEquipamentoSolar,
+    PropostaSolar,
+)
 
 
 class PropostaSolarForm(forms.ModelForm):
@@ -15,6 +23,7 @@ class PropostaSolarForm(forms.ModelForm):
             "hsp",
             "fator_eficiencia",
             "valor_instalacao",
+            "distribuidora",
             "tarifa_kwh",
             "tipo_ligacao",
             "autoconsumo_simultaneo_pct",
@@ -38,6 +47,9 @@ class PropostaSolarForm(forms.ModelForm):
         self.fields["fator_eficiencia"].widget.attrs.update({"placeholder": "0.75", "inputmode": "decimal", "step": "0.01"})
 
         self.fields["valor_instalacao"].widget.attrs.update({"placeholder": "0,00", "inputmode": "decimal", "step": "0.01"})
+        self.fields["distribuidora"].required = False
+        self.fields["distribuidora"].queryset = Distribuidora.objects.filter(ativo=True)
+        self.fields["distribuidora"].empty_label = "— usar a tarifa digitada abaixo —"
         self.fields["tarifa_kwh"].required = False
         self.fields["tarifa_kwh"].widget.attrs.update({"placeholder": "Ex: 1,385750", "inputmode": "decimal", "step": "0.000001"})
         self.fields["autoconsumo_simultaneo_pct"].widget.attrs.update(

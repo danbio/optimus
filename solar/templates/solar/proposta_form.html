@@ -138,10 +138,15 @@
           {{ form.valor_instalacao }}
           {% if form.valor_instalacao.errors %}<div class="form-error">{% for e in form.valor_instalacao.errors %}{{ e }}{% endfor %}</div>{% endif %}
         </div>
+        <div class="form-group" style="flex: 1; min-width: 200px;">
+          <label for="id_distribuidora">Distribuidora do cliente</label>
+          {{ form.distribuidora }}
+          {% if form.distribuidora.errors %}<div class="form-error">{% for e in form.distribuidora.errors %}{{ e }}{% endfor %}</div>{% endif %}
+        </div>
         <div class="form-group" style="flex: 1; min-width: 180px;">
           <label for="id_tarifa_kwh">
             Tarifa do cliente
-            <span class="form-ajuda" style="font-weight: 400;">(R$/kWh, opcional)</span>
+            <span class="form-ajuda" style="font-weight: 400;">(R$/kWh, só se não houver distribuidora)</span>
           </label>
           {{ form.tarifa_kwh }}
           {% if form.tarifa_kwh.errors %}<div class="form-error">{% for e in form.tarifa_kwh.errors %}{{ e }}{% endfor %}</div>{% endif %}
@@ -163,7 +168,9 @@
         </div>
       </div>
       <div class="form-ajuda" style="margin-top: 4px;">
-        A <strong>tarifa</strong> é a da linha “Consumo em kWh” da fatura, com tributos. O <strong>tipo de ligação</strong>
+        Escolha a <strong>distribuidora</strong> para o sistema usar a tarifa homologada pela ANEEL (com o Fio B já
+        separado) — é o caminho preferido. A <strong>tarifa</strong> digitada só é usada quando não há distribuidora;
+        nesse caso ela é a da linha “Consumo em kWh” da fatura, com tributos. O <strong>tipo de ligação</strong>
         define o mínimo faturado (30/50/100 kWh) que o cliente paga mesmo gerando tudo. O <strong>autoconsumo simultâneo</strong>
         é a parte da geração consumida na hora, que não passa pela rede e por isso escapa do Fio B — residencial fica em
         20–30%, comércio com carga diurna chega a 50–70%. Sem a tarifa, o PDF não mostra a análise de retorno.

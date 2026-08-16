@@ -55,18 +55,35 @@ class Configuracao(BaseModel):
         ),
     )
 
-    tusd_fio_b_kwh = models.DecimalField(
-        max_digits=10,
-        decimal_places=6,
-        default=Decimal("0.313783"),
-        validators=[MinValueValidator(Decimal("0"))],
-        verbose_name="TUSD Fio B (R$/kWh, com tributos)",
+    icms_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("20.00"),
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
+        verbose_name="ICMS sobre energia (%)",
+        help_text="Alíquota estadual cobrada “por dentro” no consumo. Tocantins: 20%.",
+    )
+    pis_cofins_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("9.25"),
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
+        verbose_name="PIS + COFINS (%)",
+        help_text="Soma de PIS (1,65%) e COFINS (7,60%), também cobrados “por dentro”.",
+    )
+    icms_efetivo_injecao_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("7.30"),
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
+        verbose_name="ICMS efetivo sobre energia injetada (%)",
         help_text=(
-            "Parcela da tarifa que continua sendo cobrada sobre a energia "
-            "compensada, conforme a Lei 14.300/2022. O padrão foi extraído de "
-            "uma fatura real da Energisa TO (B1 residencial): a diferença "
-            "entre a tarifa de consumo e a de energia injetada, dividida pelo "
-            "percentual do Fio B vigente no ano da fatura."
+            "O crédito da energia injetada recebe ICMS menor que o consumo — "
+            "no Tocantins a base de cálculo do ICMS da linha de injeção é só "
+            "~36% do valor (Lei estadual 1.287/2001, art. 27, VI). O padrão "
+            "de 7,30% foi medido em duas faturas reais e reproduz a tarifa "
+            "impressa com erro abaixo de 0,15%. Reconferir se a legislação "
+            "estadual mudar."
         ),
     )
     cosip_mensal = models.DecimalField(

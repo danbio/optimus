@@ -35,6 +35,30 @@ CUSTO_DISPONIBILIDADE_KWH = {
 # constante, não parâmetro por proposta (ver DIARIO 2026-08-15).
 REAJUSTE_TARIFARIO_ANUAL = Decimal("0.07")
 
+
+def aplicar_tributos(
+    tarifa_base: Decimal,
+    icms_pct: Decimal,
+    pis_cofins_pct: Decimal,
+) -> Decimal:
+    """Converte a tarifa publicada pela ANEEL (sem tributos) na tarifa que
+    aparece na fatura do cliente.
+
+    ICMS e PIS/COFINS incidem "por dentro": cada um divide a base pelo seu
+    complemento, em cascata.
+
+        tarifa_com_tributos = base / (1 − PIS/COFINS) / (1 − ICMS)
+
+    Verificado contra duas faturas reais da Energisa TO, erro de 0,0005%:
+        0,930220 / 0,9075 / 0,80 = 1,281295  (fatura: 1,281290)
+        1,006060 / 0,9075 / 0,80 = 1,385758  (fatura: 1,385750)
+    """
+    fator_pis_cofins = Decimal("1") - (pis_cofins_pct / Decimal("100"))
+    fator_icms = Decimal("1") - (icms_pct / Decimal("100"))
+    if fator_pis_cofins <= 0 or fator_icms <= 0:
+        return tarifa_base
+    return tarifa_base / fator_pis_cofins / fator_icms
+
 # Perda de eficiência dos módulos por ano. 0,5%/ano é o patamar coberto pela
 # garantia de desempenho de 25 anos dos fabricantes do catálogo.
 DEGRADACAO_ANUAL_MODULO = Decimal("0.005")
@@ -56,14 +80,24 @@ def percentual_fio_b(ano: int) -> Decimal:
     return FIO_B_PERCENTUAL_POR_ANO[ano]
 
 
-def tarifa_compensacao(tarifa_cheia: Decimal, tusd_fio_b: Decimal, ano: int) -> Decimal:
-    """Tarifa pela qual cada kWh injetado efetivamente abate a conta.
+def tarifa_compensacao(tarifa_injecao_ct: Decimal, fio_b_base: Decimal, ano: int) -> Decimal:
+    """Quanto cada kWh injetado efetivamente abate da conta.
 
-    É **menor** que a tarifa cheia: o Fio B da parcela compensada continua
-    sendo cobrado. Na fatura da Energisa TO isso aparece como a diferença
-    entre a linha "Consumo em kWh" e a linha "Energia Atv Injetada GDI".
+    Duas coisas distintas reduzem o valor do kWh injetado, e confundi-las
+    já custou um erro de 29% nesta base de código:
+
+    1. **Tributo** — o crédito da injeção recebe ICMS menor que o consumo,
+       então `tarifa_injecao_ct` já nasce abaixo da tarifa de consumo. Isso
+       vale para **todo** consumidor de GD, inclusive os antigos (GD1).
+    2. **Fio B** (Lei 14.300/2022) — cobrança à parte, isenta de tributo,
+       que só atinge quem entrou na regra nova (GDII). Na fatura é a linha
+       "Ajuste GDII - TRF Reduzida".
+
+    A diferença entre as linhas "Consumo" e "Energia Atv Injetada" da fatura
+    é o item 1, **não** o Fio B — a fatura de um GD1, que não paga Fio B
+    nenhum, tem exatamente a mesma diferença.
     """
-    return tarifa_cheia - (tusd_fio_b * percentual_fio_b(ano))
+    return tarifa_injecao_ct - (fio_b_base * percentual_fio_b(ano))
 
 
 def custo_disponibilidade_kwh(tipo_ligacao: str) -> int:
@@ -200,8 +234,9 @@ def projetar_retorno(
     valor_investimento: Decimal,
     geracao_mensal_kwh: Decimal,
     consumo_mensal_kwh: Decimal,
-    tarifa_kwh: Decimal,
-    tusd_fio_b_kwh: Decimal,
+    tarifa_consumo_kwh: Decimal,
+    tarifa_injecao_kwh: Decimal,
+    fio_b_kwh: Decimal,
     tipo_ligacao: str,
     cosip_mensal: Decimal,
     ano_base: int,
@@ -222,22 +257,30 @@ def projetar_retorno(
       descontado do Fio B da Lei 14.300 — economiza a tarifa de
       compensação, que é menor.
 
-    A conta modelada é a mesma da fatura:
-        conta = consumo_da_rede × tarifa_cheia
-                − compensada × tarifa_compensação
-                + COSIP
+    A conta modelada é linha a linha a mesma da fatura:
 
-    onde `compensada` é limitada pelo custo de disponibilidade: o cliente
-    sempre paga no mínimo 30/50/100 kWh conforme o tipo de ligação.
+        conta = consumo_da_rede × tarifa_consumo        ("Consumo em kWh")
+              − compensada      × tarifa_injecao        ("Energia Atv Injetada")
+              + compensada      × ajuste_fio_b          ("Ajuste GDII", só GDII)
+              + COSIP                                   ("Contrib de Ilum Pub")
+
+    O custo de disponibilidade (30/50/100 kWh conforme a ligação) entra como
+    **piso da conta de energia**, não como teto da compensação — é assim que
+    a fatura real se comporta.
+
+    `tarifa_consumo_kwh` e `tarifa_injecao_kwh` já vêm **com tributos**;
+    `fio_b_kwh` vem **sem tributos** e a 100% — o percentual do ano é
+    aplicado aqui dentro, ano a ano.
     """
-    if not tarifa_kwh or tarifa_kwh <= 0:
+    if not tarifa_consumo_kwh or tarifa_consumo_kwh <= 0:
         return None
     if not geracao_mensal_kwh or geracao_mensal_kwh <= 0:
         return None
     if not consumo_mensal_kwh or consumo_mensal_kwh <= 0:
         return None
 
-    tusd_fio_b_kwh = tusd_fio_b_kwh or Decimal("0")
+    tarifa_injecao_kwh = tarifa_injecao_kwh or tarifa_consumo_kwh
+    fio_b_kwh = fio_b_kwh or Decimal("0")
     cosip_mensal = cosip_mensal or Decimal("0")
     minimo_kwh = Decimal(custo_disponibilidade_kwh(tipo_ligacao))
     fracao_simultanea = (autoconsumo_simultaneo_pct or Decimal("0")) / Decimal("100")
@@ -251,9 +294,10 @@ def projetar_retorno(
         correcao = (Decimal("1") + REAJUSTE_TARIFARIO_ANUAL) ** indice
         degradacao = (Decimal("1") - DEGRADACAO_ANUAL_MODULO) ** indice
 
-        tarifa_ano = tarifa_kwh * correcao
-        fio_b_ano = tusd_fio_b_kwh * correcao
-        tarifa_comp = tarifa_compensacao(tarifa_ano, fio_b_ano, ano_calendario)
+        tarifa_ano = tarifa_consumo_kwh * correcao
+        tarifa_injecao_ano = tarifa_injecao_kwh * correcao
+        fio_b_ano = fio_b_kwh * correcao
+        tarifa_comp = tarifa_compensacao(tarifa_injecao_ano, fio_b_ano, ano_calendario)
 
         geracao_ano = geracao_mensal_kwh * degradacao
 
@@ -261,13 +305,27 @@ def projetar_retorno(
         autoconsumo = min(geracao_ano * fracao_simultanea, consumo_mensal_kwh)
         injetada = geracao_ano - autoconsumo
 
-        # O que ainda é comprado da rede depois do autoconsumo define quanto
-        # crédito cabe abater — respeitado o mínimo faturado.
+        # O excedente só abate o que ainda vem da rede. Gerar além disso
+        # vira crédito (válido 60 meses), que esta projeção não conta como
+        # economia.
         consumo_rede = consumo_mensal_kwh - autoconsumo
-        compensavel_max = max(Decimal("0"), consumo_rede - minimo_kwh)
-        compensada = min(injetada, compensavel_max)
+        compensada = min(injetada, consumo_rede)
 
-        economia_mes = autoconsumo * tarifa_ano + compensada * tarifa_comp
+        # Conta de energia montada linha a linha, como na fatura.
+        ajuste = fio_b_ano * percentual_fio_b(ano_calendario)
+        valor_energia = (
+            consumo_rede * tarifa_ano
+            - compensada * tarifa_injecao_ano
+            + compensada * ajuste
+        )
+
+        # Custo de disponibilidade é **piso da conta**, não teto da
+        # compensação: a fatura real compensa o consumo inteiro e só depois
+        # garante o mínimo. Modelar como teto subestimava a economia em um
+        # mês inteiro de mínimo.
+        valor_energia = max(valor_energia, minimo_kwh * tarifa_ano)
+
+        economia_mes = (consumo_mensal_kwh * tarifa_ano) - valor_energia
         economia_ano = (economia_mes * 12).quantize(_CENTAVO)
 
         anterior = acumulado
@@ -297,7 +355,7 @@ def projetar_retorno(
         )
 
     primeiro = fluxo[0]
-    conta_atual = (consumo_mensal_kwh * tarifa_kwh + cosip_mensal).quantize(_CENTAVO)
+    conta_atual = (consumo_mensal_kwh * tarifa_consumo_kwh + cosip_mensal).quantize(_CENTAVO)
     conta_estimada = (conta_atual - primeiro["economia_mensal"]).quantize(_CENTAVO)
 
     return {

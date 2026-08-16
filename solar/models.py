@@ -254,6 +254,98 @@ class PrecoEquipamentoSolar(BaseModel):
         )
 
 
+class Distribuidora(BaseModel):
+    """Concessionária de distribuição de energia.
+
+    O CNPJ é a chave usada para consultar as tarifas homologadas no portal
+    de dados abertos da ANEEL (ver `sincronizar_tarifas_aneel`), por isso é
+    obrigatório e único.
+    """
+
+    nome = models.CharField(max_length=120, verbose_name="nome")
+    sigla = models.CharField(max_length=20, verbose_name="sigla ANEEL", help_text="Como aparece no campo SigNomeAgente da ANEEL. Ex.: ETO.")
+    cnpj = models.CharField(max_length=14, unique=True, verbose_name="CNPJ (só dígitos)")
+    uf = models.CharField(max_length=2, verbose_name="UF")
+    ativo = models.BooleanField(default=True, verbose_name="ativo")
+
+    class Meta:
+        verbose_name = "distribuidora"
+        verbose_name_plural = "distribuidoras"
+        ordering = ["uf", "nome"]
+
+    def __str__(self):
+        return f"{self.nome} ({self.uf})"
+
+
+class TarifaDistribuidora(BaseModel):
+    """Espelho local das tarifas homologadas pela ANEEL.
+
+    ⚠️ Os valores são gravados **em R$/MWh e SEM tributos**, exatamente como
+    a ANEEL publica. Quem converte para R$/kWh com tributos é
+    `solar/services.py` — o gross-up está verificado contra fatura real da
+    Energisa TO com erro de 0,0005%.
+
+    Cada linha vale para uma vigência (a ANEEL reajusta uma vez por ano).
+    """
+
+    distribuidora = models.ForeignKey(Distribuidora, on_delete=models.CASCADE, related_name="tarifas", verbose_name="distribuidora")
+    subgrupo = models.CharField(max_length=10, default="B1", verbose_name="subgrupo tarifário")
+    modalidade = models.CharField(max_length=40, default="Convencional", verbose_name="modalidade")
+    subclasse = models.CharField(max_length=80, default="Residencial", verbose_name="subclasse")
+
+    vigencia_inicio = models.DateField(verbose_name="início da vigência")
+    vigencia_fim = models.DateField(null=True, blank=True, verbose_name="fim da vigência")
+
+    vlr_tusd = models.DecimalField(max_digits=12, decimal_places=6, verbose_name="TUSD (R$/MWh)")
+    vlr_te = models.DecimalField(max_digits=12, decimal_places=6, verbose_name="TE (R$/MWh)")
+    vlr_tusd_fio_b = models.DecimalField(max_digits=12, decimal_places=6, default=0, verbose_name="TUSD Fio B (R$/MWh)")
+
+    sincronizado_em = models.DateTimeField(null=True, blank=True, verbose_name="sincronizado em")
+
+    class Meta:
+        verbose_name = "tarifa da distribuidora"
+        verbose_name_plural = "tarifas das distribuidoras"
+        ordering = ["distribuidora", "-vigencia_inicio", "subclasse"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["distribuidora", "subgrupo", "modalidade", "subclasse", "vigencia_inicio"],
+                name="tarifa_aneel_unica_por_vigencia",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.distribuidora.sigla} {self.subgrupo} {self.subclasse} — {self.vigencia_inicio:%d/%m/%Y}"
+
+    @property
+    def tarifa_base_kwh(self) -> Decimal:
+        """TUSD + TE convertidos para R$/kWh, ainda sem tributos.
+
+        É o valor que a fatura da Energisa imprime na coluna "Tarifa Unit".
+        """
+        return (self.vlr_tusd + self.vlr_te) / Decimal("1000")
+
+    @property
+    def fio_b_kwh(self) -> Decimal:
+        """TUSD Fio B em R$/kWh, sem tributos. É a base do "Ajuste GDII"."""
+        return self.vlr_tusd_fio_b / Decimal("1000")
+
+    @classmethod
+    def vigente(cls, distribuidora, data, subclasse="Residencial", subgrupo="B1"):
+        """Tarifa válida numa data. Vigência aberta (`vigencia_fim` nulo)
+        conta como ainda vigente."""
+        return (
+            cls.objects.filter(
+                distribuidora=distribuidora,
+                subgrupo=subgrupo,
+                subclasse=subclasse,
+                vigencia_inicio__lte=data,
+            )
+            .filter(models.Q(vigencia_fim__gte=data) | models.Q(vigencia_fim__isnull=True))
+            .order_by("-vigencia_inicio")
+            .first()
+        )
+
+
 class TaxaCartao(BaseModel):
     """Tabela de acréscimo do cartão por bandeira/parcela (fonte: tabela
     oficial Intelbras — "Simulador de Acréscimo ao Portador"). Usada pra
@@ -425,6 +517,15 @@ class PropostaSolar(BaseModel):
     # Equipamento Base de Dimensionamento (Referência)
     modulo = models.ForeignKey(ModuloFotovoltaico, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="módulo fotovoltaico")
 
+    distribuidora = models.ForeignKey(
+        Distribuidora,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="distribuidora do cliente",
+        help_text="Define a tarifa homologada e o Fio B usados na análise de retorno, direto da ANEEL.",
+    )
+
     # Financeiro
     valor_instalacao = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="valor da instalação (R$)")
     tarifa_kwh = models.DecimalField(
@@ -515,28 +616,87 @@ class PropostaSolar(BaseModel):
         return round(float(self.potencia_real_kwp) * float(self.hsp) * 30 * float(self.fator_eficiencia))
 
     @property
+    def tarifas_aplicaveis(self):
+        """Tarifas de consumo e injeção (com tributos) e o Fio B base.
+
+        Prioriza a tarifa homologada da distribuidora do cliente, espelhada
+        da ANEEL (`TarifaDistribuidora`). Se a proposta não tem distribuidora
+        ou não há tarifa sincronizada para a data, cai para `tarifa_kwh`
+        digitada da fatura — nesse caso o Fio B fica zerado, porque não dá
+        pra separar a parcela sem a tarifa-base da ANEEL.
+
+        Retorna None quando não há nenhuma das duas: sem dado real, a
+        análise de retorno inteira some da proposta.
+        """
+        from configuracoes.models import Configuracao
+
+        from .services import aplicar_tributos
+
+        config = Configuracao.atual()
+        referencia = self.criado_em.date() if self.criado_em else date.today()
+
+        tarifa = None
+        if self.distribuidora_id:
+            tarifa = TarifaDistribuidora.vigente(self.distribuidora, referencia)
+
+        if tarifa:
+            base = tarifa.tarifa_base_kwh
+            return {
+                "consumo": aplicar_tributos(base, config.icms_pct, config.pis_cofins_pct),
+                "injecao": aplicar_tributos(base, config.icms_efetivo_injecao_pct, config.pis_cofins_pct),
+                "fio_b": tarifa.fio_b_kwh,
+                "origem": "aneel",
+                "vigencia": tarifa.vigencia_inicio,
+            }
+
+        if self.tarifa_kwh and self.tarifa_kwh > 0:
+            # Sem a decomposição da ANEEL, o melhor que dá pra fazer é
+            # reconstruir a tarifa de injeção pelo mesmo gross-up reduzido.
+            base_estimada = self.tarifa_kwh * (Decimal("1") - config.pis_cofins_pct / 100) * (Decimal("1") - config.icms_pct / 100)
+            return {
+                "consumo": self.tarifa_kwh,
+                "injecao": aplicar_tributos(base_estimada, config.icms_efetivo_injecao_pct, config.pis_cofins_pct),
+                "fio_b": Decimal("0"),
+                "origem": "manual",
+                "vigencia": None,
+            }
+
+        return None
+
+    @property
     def retorno_financeiro(self):
-        """Projeção de retorno pelas regras reais de GD da Lei 14.300/2022 —
-        Fio B gradual sobre a energia compensada, custo de disponibilidade e
-        COSIP não compensados. Só calcula quando o vendedor informa a tarifa
-        do cliente (`tarifa_kwh`); sem isso retorna None, não inventa número.
-        Ver `solar/services.py` e a skill solar-domain §8."""
+        """Projeção de retorno pelas regras reais de GD da Lei 14.300/2022.
+
+        Modela a fatura linha a linha: consumo, crédito da injeção (com ICMS
+        reduzido), Ajuste do Fio B e COSIP. Sem tarifa — nem da ANEEL nem
+        digitada — retorna None em vez de inventar número. Ver
+        `solar/services.py` e a skill solar-domain §8."""
         from configuracoes.models import Configuracao
 
         from .services import projetar_retorno
 
+        tarifas = self.tarifas_aplicaveis
+        if not tarifas:
+            return None
+
         config = Configuracao.atual()
-        return projetar_retorno(
+        resultado = projetar_retorno(
             valor_investimento=self.valor_total,
             geracao_mensal_kwh=Decimal(str(self.geracao_mensal_kwh or 0)),
             consumo_mensal_kwh=self.consumo_medio_kwh,
-            tarifa_kwh=self.tarifa_kwh,
-            tusd_fio_b_kwh=config.tusd_fio_b_kwh,
+            tarifa_consumo_kwh=tarifas["consumo"],
+            tarifa_injecao_kwh=tarifas["injecao"],
+            fio_b_kwh=tarifas["fio_b"],
             tipo_ligacao=self.tipo_ligacao,
             cosip_mensal=config.cosip_mensal,
             autoconsumo_simultaneo_pct=self.autoconsumo_simultaneo_pct,
             ano_base=(self.criado_em.year if self.criado_em else date.today().year),
         )
+        if resultado:
+            resultado["origem_tarifa"] = tarifas["origem"]
+            resultado["vigencia_tarifa"] = tarifas["vigencia"]
+            resultado["tarifa_consumo_kwh"] = tarifas["consumo"]
+        return resultado
 
     @property
     def inversor_principal(self):

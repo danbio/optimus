@@ -181,8 +181,17 @@
   <table class="tabela" style="font-size: 12px;">
     <tbody>
       <tr>
-        <td>Tarifa de energia informada pelo cliente</td>
-        <td style="text-align: right;">R$ {{ proposta.tarifa_kwh|floatformat:6 }}/kWh</td>
+        <td>
+          Tarifa de energia
+          {% if retorno.origem_tarifa == "aneel" %}
+            <div style="font-size: 10px; color: var(--texto-corpo);">
+              Homologada pela ANEEL para {{ proposta.distribuidora.nome }}, vigente desde {{ retorno.vigencia_tarifa|date:"d/m/Y" }}
+            </div>
+          {% else %}
+            <div style="font-size: 10px; color: var(--texto-corpo);">Informada a partir da fatura do cliente</div>
+          {% endif %}
+        </td>
+        <td style="text-align: right;">R$ {{ retorno.tarifa_consumo_kwh|floatformat:6 }}/kWh</td>
       </tr>
       <tr>
         <td>Consumo médio mensal</td>

@@ -13,7 +13,9 @@ from clientes.models import Cliente
 from core.permissoes import GRUPO_ADMIN
 
 from .admin import PrecoEquipamentoSolarAdmin
+from .aneel import consolidar_tarifas
 from .models import (
+    Distribuidora,
     EstruturaFixacao,
     Inversor,
     ItemPropostaSolar,
@@ -21,14 +23,15 @@ from .models import (
     ModuloFotovoltaico,
     PrecoEquipamentoSolar,
     PropostaSolar,
+    TarifaDistribuidora,
     TaxaCartao,
 )
 from .services import (
+    aplicar_tributos,
     formatar_prazo,
     grafico_economia_anual,
     percentual_fio_b,
     projetar_retorno,
-    tarifa_compensacao,
 )
 from .views._helpers import calcular_parcela_cartao
 
@@ -965,66 +968,255 @@ class FormatarPrazoTests(TestCase):
         self.assertNotIn(",", formatar_prazo(Decimal("1.1")))
 
 
+class ConsolidarTarifasANEELTests(TestCase):
+    """Transformação dos componentes soltos da ANEEL numa tarifa utilizável.
+
+    Sem rede: exercita só a função pura sobre um payload no formato real
+    devolvido pelo `datastore_search`."""
+
+    def _registro(self, componente, valor, **extra):
+        base = {
+            "DscBaseTarifaria": "Tarifa de Aplicação",
+            "DscComponenteTarifario": componente,
+            "VlrComponenteTarifario": valor,
+            "DatInicioVigencia": "2026-07-04",
+            "DatFimVigencia": "2027-07-03",
+            "DscSubClasseConsumidor": "Residencial",
+            "DscSubGrupoTarifario": "B1",
+            "DscModalidadeTarifaria": "Convencional",
+        }
+        base.update(extra)
+        return base
+
+    def test_agrupa_componentes_numa_linha_por_vigencia(self) -> None:
+        registros = [
+            self._registro("TUSD", "683,43"),
+            self._registro("TE", "322,63"),
+            self._registro("TUSD_FioB", "441,478264"),
+        ]
+
+        tarifas = consolidar_tarifas(registros)
+
+        self.assertEqual(len(tarifas), 1)
+        linha = tarifas[("2026-07-04", "Residencial")]
+        self.assertEqual(linha["vlr_tusd"], Decimal("683.43"))
+        self.assertEqual(linha["vlr_te"], Decimal("322.63"))
+        self.assertEqual(linha["vlr_tusd_fio_b"], Decimal("441.478264"))
+
+    def test_converte_virgula_decimal_da_aneel(self) -> None:
+        """A ANEEL devolve "683,43", não "683.43"."""
+        tarifas = consolidar_tarifas([self._registro("TUSD", "1.006,06"), self._registro("TE", "0,00")])
+
+        self.assertEqual(tarifas[("2026-07-04", "Residencial")]["vlr_tusd"], Decimal("1006.06"))
+
+    def test_ignora_base_economica_e_cva(self) -> None:
+        """Só "Tarifa de Aplicação" é o que o cliente realmente paga."""
+        registros = [
+            self._registro("TUSD", "683,43", DscBaseTarifaria="Base Econômica"),
+            self._registro("TE", "322,63", DscBaseTarifaria="Base Econômica"),
+            self._registro("TUSD", "1,00", DscBaseTarifaria="CVA"),
+        ]
+
+        self.assertEqual(consolidar_tarifas(registros), {})
+
+    def test_descarta_linha_sem_tusd_ou_te(self) -> None:
+        """Só Fio B não dá pra montar tarifa nenhuma."""
+        self.assertEqual(consolidar_tarifas([self._registro("TUSD_FioB", "441,47")]), {})
+
+    def test_separa_subclasses_diferentes(self) -> None:
+        registros = [
+            self._registro("TUSD", "683,43"),
+            self._registro("TE", "322,63"),
+            self._registro("TUSD", "600,00", DscSubClasseConsumidor="Baixa Renda"),
+            self._registro("TE", "300,00", DscSubClasseConsumidor="Baixa Renda"),
+        ]
+
+        self.assertEqual(len(consolidar_tarifas(registros)), 2)
+
+
+class TarifaDistribuidoraTests(TestCase):
+    def setUp(self) -> None:
+        self.eto = Distribuidora.objects.create(
+            nome="Energisa Tocantins", sigla="ETO", cnpj="25086034000171", uf="TO"
+        )
+
+    def _tarifa(self, inicio, fim=None, tusd="683.43", te="322.63", fio_b="441.478264"):
+        return TarifaDistribuidora.objects.create(
+            distribuidora=self.eto, vigencia_inicio=inicio, vigencia_fim=fim,
+            vlr_tusd=Decimal(tusd), vlr_te=Decimal(te), vlr_tusd_fio_b=Decimal(fio_b),
+        )
+
+    def test_tarifa_base_bate_com_a_coluna_tarifa_unit_da_fatura(self) -> None:
+        """TUSD 683,43 + TE 322,63 = 1006,06 R$/MWh = 1,006060 R$/kWh —
+        exatamente a coluna "Tarifa Unit" da fatura de agosto/2026."""
+        tarifa = self._tarifa(date(2026, 7, 4), date(2027, 7, 3))
+
+        self.assertEqual(tarifa.tarifa_base_kwh, Decimal("1.006060"))
+        self.assertEqual(tarifa.fio_b_kwh, Decimal("0.441478264"))
+
+    def test_vigente_escolhe_a_do_periodo(self) -> None:
+        antiga = self._tarifa(date(2025, 7, 4), date(2026, 7, 3), tusd="600")
+        nova = self._tarifa(date(2026, 7, 4), date(2027, 7, 3))
+
+        self.assertEqual(TarifaDistribuidora.vigente(self.eto, date(2026, 1, 10)), antiga)
+        self.assertEqual(TarifaDistribuidora.vigente(self.eto, date(2026, 8, 16)), nova)
+
+    def test_vigencia_aberta_continua_valendo(self) -> None:
+        aberta = self._tarifa(date(2026, 7, 4), None)
+
+        self.assertEqual(TarifaDistribuidora.vigente(self.eto, date(2030, 1, 1)), aberta)
+
+    def test_sem_tarifa_na_data_retorna_none(self) -> None:
+        self._tarifa(date(2026, 7, 4), date(2027, 7, 3))
+
+        self.assertIsNone(TarifaDistribuidora.vigente(self.eto, date(2020, 1, 1)))
+
+
+class AplicarTributosTests(TestCase):
+    """Gross-up da tarifa da ANEEL (sem tributos) para a tarifa da fatura.
+
+    ICMS e PIS/COFINS incidem "por dentro", em cascata. Duas faturas reais
+    da Energisa TO confirmam a fórmula com erro abaixo de 0,001%."""
+
+    ICMS = Decimal("20.00")
+    PIS_COFINS = Decimal("9.25")
+
+    def test_bate_com_a_fatura_do_ciclo_2025(self) -> None:
+        # Fatura de julho/2026: Tarifa Unit 0,930220 -> "com tributos" 1,281290
+        calculado = aplicar_tributos(Decimal("0.930220"), self.ICMS, self.PIS_COFINS)
+
+        self.assertAlmostEqual(calculado, Decimal("1.281290"), delta=Decimal("0.00001"))
+
+    def test_bate_com_a_fatura_do_ciclo_2026(self) -> None:
+        # Fatura de agosto/2026: Tarifa Unit 1,006060 -> "com tributos" 1,385750
+        calculado = aplicar_tributos(Decimal("1.006060"), self.ICMS, self.PIS_COFINS)
+
+        self.assertAlmostEqual(calculado, Decimal("1.385750"), delta=Decimal("0.00001"))
+
+    def test_icms_reduzido_reproduz_a_tarifa_de_injecao(self) -> None:
+        """O crédito da energia injetada leva ICMS efetivo bem menor (~7,3%)
+        que o consumo — é isso, e não o Fio B, que explica a tarifa de
+        injeção ser menor na fatura."""
+        calculado = aplicar_tributos(Decimal("1.006060"), Decimal("7.30"), self.PIS_COFINS)
+
+        self.assertAlmostEqual(calculado, Decimal("1.197480"), delta=Decimal("0.002"))
+
+    def test_sem_tributo_devolve_a_propria_base(self) -> None:
+        self.assertEqual(aplicar_tributos(Decimal("1.00"), Decimal("0"), Decimal("0")), Decimal("1.00"))
+
+
 class RetornoGDContraFaturaRealTests(TestCase):
-    """Âncora de verificação do motor de cálculo: reproduz uma fatura real
-    da Energisa Tocantins (B1 residencial monofásico, referência agosto/2026,
-    consumidor GD). Se algum destes testes quebrar, o cálculo deixou de
-    corresponder ao que a distribuidora realmente cobra."""
+    """Âncoras de verificação do motor de cálculo, contra **duas** faturas
+    reais da Energisa Tocantins (B1 residencial monofásico).
 
-    TARIFA = Decimal("1.385750")   # linha "Consumo em kWh", com tributos
-    FIO_B = Decimal("0.313783")    # padrão de Configuracao
-    CONSUMO = Decimal("547")       # kWh lidos do medidor
-    INJETADA = Decimal("499")      # kWh injetados na rede
-    COSIP = Decimal("42.14")       # Contrib de Ilum Pub
+    As duas juntas são o que separa tributo de Fio B — a primeira versão
+    desta feature confundiu os dois e superestimou a economia em 29%,
+    justamente porque só tinha a fatura GD1 como referência.
+    """
 
-    def test_tarifa_de_compensacao_bate_com_a_linha_gdi_da_fatura(self) -> None:
-        """A fatura credita a energia injetada a 1,197480 R$/kWh, não à
-        tarifa cheia de 1,385750 — a diferença é o Fio B a 60% (2026)."""
-        tarifa = tarifa_compensacao(self.TARIFA, self.FIO_B, 2026)
+    COSIP_AGO = Decimal("42.14")
+    COSIP_JUL = Decimal("29.50")
 
-        self.assertEqual(tarifa.quantize(Decimal("0.000001")), Decimal("1.197480"))
+    # --- Fatura agosto/2026 — consumidor GD1 (direito adquirido, SEM Fio B)
+    GD1_CONSUMO_CT = Decimal("1.385750")
+    GD1_INJECAO_CT = Decimal("1.197480")
+    GD1_CONSUMO_KWH = Decimal("547")
+    GD1_INJETADA_KWH = Decimal("499")
 
-    def test_valor_creditado_bate_com_a_fatura(self) -> None:
-        tarifa = tarifa_compensacao(self.TARIFA, self.FIO_B, 2026)
-        creditado = (self.INJETADA * tarifa).quantize(Decimal("0.01"))
+    # --- Fatura julho/2026 — consumidor GDII (regra nova, COM Fio B)
+    GDII_CONSUMO_CT = Decimal("1.281290")
+    GDII_INJECAO_CT = Decimal("1.104860")
+    GDII_AJUSTE_FIO_B = Decimal("0.256552")  # linha "Ajuste GDII - TRF Reduzida"
+    GDII_FIO_B_100 = GDII_AJUSTE_FIO_B / Decimal("0.60")  # o ajuste já vem a 60%
+    GDII_KWH = Decimal("380")
 
-        self.assertEqual(creditado, Decimal("597.54"))
+    def test_gd1_sem_fio_b_reproduz_a_fatura(self) -> None:
+        """Fatura: 758,00 − 597,54 + 42,14 (+1,25 bandeira −4,46 bônus) = 199,39.
 
-    def test_conta_estimada_reproduz_a_fatura(self) -> None:
-        """Fatura real: 758,00 (consumo) − 597,54 (injetada) + 42,14 (COSIP)
-        + 1,25 (bandeira) − 4,46 (bônus Itaipu) = 199,39.
-
-        O motor não modela bandeira nem bônus (itens transitórios), então
-        deve fechar em ~202,60 — a fatura sem essas duas linhas.
-
-        Tolerância de 2 centavos porque a distribuidora arredonda cada
-        linha antes de somar e a tarifa impressa (1,385750) já é um
-        arredondamento da tarifa-base com gross-up de tributos. Exigir
-        igualdade ao centavo seria ajustar o cálculo a artefato de
-        arredondamento, não à regra de negócio."""
-        # 100% injetado: é o cenário que a fatura registra (o medidor só vê
-        # o que passa pela rede).
+        Bandeira e bônus são itens transitórios que o motor não modela, então
+        somamos os dois à parte. Tolerância de 2 centavos porque a
+        distribuidora arredonda linha a linha."""
         retorno = projetar_retorno(
             valor_investimento=Decimal("20000"),
-            geracao_mensal_kwh=self.INJETADA,
-            consumo_mensal_kwh=self.CONSUMO,
-            tarifa_kwh=self.TARIFA,
-            tusd_fio_b_kwh=self.FIO_B,
+            geracao_mensal_kwh=self.GD1_INJETADA_KWH,
+            consumo_mensal_kwh=self.GD1_CONSUMO_KWH,
+            tarifa_consumo_kwh=self.GD1_CONSUMO_CT,
+            tarifa_injecao_kwh=self.GD1_INJECAO_CT,
+            fio_b_kwh=Decimal("0"),  # GD1 não paga Fio B
             tipo_ligacao="monofasico",
-            cosip_mensal=self.COSIP,
+            cosip_mensal=self.COSIP_AGO,
             ano_base=2026,
             autoconsumo_simultaneo_pct=Decimal("0"),
         )
 
         self.assertEqual(retorno["economia_mensal"], Decimal("597.54"))
+        total = retorno["conta_estimada"] + Decimal("1.25") - Decimal("4.46")
+        self.assertAlmostEqual(total, Decimal("199.39"), delta=Decimal("0.02"))
 
-        total_modelado = retorno["conta_estimada"] + Decimal("1.25") - Decimal("4.46")
-        self.assertAlmostEqual(
-            total_modelado,
-            Decimal("199.39"),
-            delta=Decimal("0.02"),
-            msg="deveria fechar com o total real da fatura (R$ 199,39)",
+    def test_gdii_com_fio_b_reproduz_a_fatura(self) -> None:
+        """Fatura: 486,89 − 419,85 + 97,48 (Ajuste Fio B) + 29,50 = 194,02.
+
+        Aqui o Fio B aparece como linha própria e isenta de tributo — é o
+        caso que a fatura GD1 não tinha e que fez a versão anterior errar."""
+        retorno = projetar_retorno(
+            valor_investimento=Decimal("20000"),
+            geracao_mensal_kwh=self.GDII_KWH,
+            consumo_mensal_kwh=self.GDII_KWH,
+            tarifa_consumo_kwh=self.GDII_CONSUMO_CT,
+            tarifa_injecao_kwh=self.GDII_INJECAO_CT,
+            fio_b_kwh=self.GDII_FIO_B_100,
+            tipo_ligacao="monofasico",
+            cosip_mensal=self.COSIP_JUL,
+            ano_base=2026,
+            autoconsumo_simultaneo_pct=Decimal("0"),
         )
+
+        # A fatura compensou os 380 kWh cheios; o mínimo de 30 kWh não pegou
+        # porque o Ajuste do Fio B já deixa a conta acima dele.
+        self.assertAlmostEqual(
+            retorno["conta_estimada"], Decimal("194.02"), delta=Decimal("0.05"),
+            msg="deveria fechar com o total real da fatura (R$ 194,02)",
+        )
+
+    def test_fio_b_reduz_a_economia_frente_ao_gd1(self) -> None:
+        """Mesmo sistema, mesma tarifa: quem entrou na regra nova economiza
+        menos. Se este teste inverter, o Fio B parou de ser aplicado."""
+        comum = dict(
+            valor_investimento=Decimal("20000"),
+            geracao_mensal_kwh=self.GDII_KWH,
+            consumo_mensal_kwh=self.GDII_KWH,
+            tarifa_consumo_kwh=self.GDII_CONSUMO_CT,
+            tarifa_injecao_kwh=self.GDII_INJECAO_CT,
+            tipo_ligacao="monofasico",
+            cosip_mensal=self.COSIP_JUL,
+            ano_base=2026,
+            autoconsumo_simultaneo_pct=Decimal("0"),
+        )
+        gd1 = projetar_retorno(**comum, fio_b_kwh=Decimal("0"))
+        gdii = projetar_retorno(**comum, fio_b_kwh=self.GDII_FIO_B_100)
+
+        self.assertLess(gdii["economia_mensal"], gd1["economia_mensal"])
+
+    def test_regressao_nao_volta_a_confundir_tributo_com_fio_b(self) -> None:
+        """O bug original tratava a diferença entre as tarifas de consumo e
+        injeção como se fosse Fio B, e ainda descontava o Fio B por cima —
+        chegando a ~1,0930/kWh contra os 0,8483 reais (+29%)."""
+        retorno = projetar_retorno(
+            valor_investimento=Decimal("20000"),
+            geracao_mensal_kwh=self.GDII_KWH,
+            consumo_mensal_kwh=self.GDII_KWH,
+            tarifa_consumo_kwh=self.GDII_CONSUMO_CT,
+            tarifa_injecao_kwh=self.GDII_INJECAO_CT,
+            fio_b_kwh=self.GDII_FIO_B_100,
+            tipo_ligacao="monofasico",
+            cosip_mensal=self.COSIP_JUL,
+            ano_base=2026,
+            autoconsumo_simultaneo_pct=Decimal("0"),
+        )
+        por_kwh = retorno["fluxo_anual"][0]["tarifa_compensacao"]
+
+        self.assertAlmostEqual(por_kwh, Decimal("0.848308"), delta=Decimal("0.0001"))
+        self.assertLess(por_kwh, Decimal("1.09"), msg="voltou a superestimar como no bug original")
 
 
 class ProjetarRetornoTests(TestCase):
@@ -1034,8 +1226,9 @@ class ProjetarRetornoTests(TestCase):
         valor_investimento=Decimal("20000"),
         geracao_mensal_kwh=Decimal("500"),
         consumo_mensal_kwh=Decimal("500"),
-        tarifa_kwh=Decimal("1.385750"),
-        tusd_fio_b_kwh=Decimal("0.313783"),
+        tarifa_consumo_kwh=Decimal("1.385750"),
+        tarifa_injecao_kwh=Decimal("1.197480"),
+        fio_b_kwh=Decimal("0.441478"),
         tipo_ligacao="monofasico",
         cosip_mensal=Decimal("42.14"),
         ano_base=2026,
@@ -1043,26 +1236,37 @@ class ProjetarRetornoTests(TestCase):
 
     def test_economia_e_menor_que_geracao_vezes_tarifa(self) -> None:
         """Regressão do bug original: o cálculo antigo era geração × tarifa
-        cheia, que superestima porque ignora Fio B e custo de
-        disponibilidade."""
+        cheia, que superestima porque ignora tributo sobre a injeção, Fio B
+        e custo de disponibilidade."""
         retorno = projetar_retorno(**self.BASE)
         ingenuo = Decimal("500") * Decimal("1.385750")
 
         self.assertLess(retorno["economia_mensal"], ingenuo)
 
-    def test_custo_de_disponibilidade_limita_a_compensacao(self) -> None:
+    def test_custo_de_disponibilidade_e_piso_da_conta(self) -> None:
         """Mesmo gerando muito mais que consome, o cliente monofásico segue
-        pagando os 30 kWh mínimos."""
+        pagando pelo menos 30 kWh. O mínimo é piso da conta — a compensação
+        em si cobre o consumo inteiro, como na fatura real."""
         retorno = projetar_retorno(**{**self.BASE, "geracao_mensal_kwh": Decimal("5000")})
 
         self.assertEqual(retorno["custo_disponibilidade_kwh"], 30)
-        self.assertEqual(retorno["compensada_mensal_kwh"], Decimal("470.00"))  # 500 − 30
+        self.assertEqual(retorno["compensada_mensal_kwh"], Decimal("500.00"))
+        # conta nunca zera: sobra o mínimo faturado + COSIP
+        self.assertGreaterEqual(
+            retorno["conta_estimada"],
+            Decimal("30") * Decimal("1.385750") + Decimal("42.14") - Decimal("0.01"),
+        )
 
     def test_trifasico_paga_minimo_maior(self) -> None:
-        retorno = projetar_retorno(**{**self.BASE, "tipo_ligacao": "trifasico"})
+        """Sem Fio B (consumidor GD1) a conta cairia bem baixo, e aí o piso
+        de 100 kWh do trifásico passa a valer — com Fio B o ajuste já mantém
+        a conta acima de qualquer um dos pisos."""
+        gd1 = {**self.BASE, "geracao_mensal_kwh": Decimal("5000"), "fio_b_kwh": Decimal("0")}
+        mono = projetar_retorno(**gd1)
+        tri = projetar_retorno(**{**gd1, "tipo_ligacao": "trifasico"})
 
-        self.assertEqual(retorno["custo_disponibilidade_kwh"], 100)
-        self.assertEqual(retorno["compensada_mensal_kwh"], Decimal("400.00"))  # 500 − 100
+        self.assertEqual(tri["custo_disponibilidade_kwh"], 100)
+        self.assertGreater(tri["conta_estimada"], mono["conta_estimada"])
 
     def test_autoconsumo_simultaneo_economiza_mais_que_injetar(self) -> None:
         """O kWh consumido na hora não passa pela rede, logo não sofre Fio B
@@ -1072,14 +1276,18 @@ class ProjetarRetornoTests(TestCase):
 
         self.assertGreater(com["economia_mensal"], sem["economia_mensal"])
 
-    def test_autoconsumo_total_economiza_a_tarifa_cheia(self) -> None:
+    def test_autoconsumo_total_economiza_quase_a_tarifa_cheia(self) -> None:
+        """Consumindo tudo na hora, nada passa pela rede — mas o mínimo
+        faturado (30 kWh) continua na conta, então a economia é a tarifa
+        cheia menos esse piso."""
         retorno = projetar_retorno(
             **{**self.BASE, "autoconsumo_simultaneo_pct": Decimal("100")}
         )
-        cheia = (Decimal("500") * Decimal("1.385750")).quantize(Decimal("0.01"))
+        cheia = Decimal("500") * Decimal("1.385750")
+        piso = Decimal("30") * Decimal("1.385750")
 
         self.assertEqual(retorno["autoconsumo_mensal_kwh"], Decimal("500.00"))
-        self.assertEqual(retorno["economia_mensal"], cheia)
+        self.assertEqual(retorno["economia_mensal"], (cheia - piso).quantize(Decimal("0.01")))
 
     def test_economia_cai_quando_o_fio_b_sobe(self) -> None:
         """Entre 2026 (60%) e 2028 (90%) a mesma usina economiza menos."""
@@ -1121,7 +1329,7 @@ class ProjetarRetornoTests(TestCase):
         )
 
     def test_sem_tarifa_retorna_none(self) -> None:
-        self.assertIsNone(projetar_retorno(**{**self.BASE, "tarifa_kwh": None}))
+        self.assertIsNone(projetar_retorno(**{**self.BASE, "tarifa_consumo_kwh": None}))
 
     def test_sem_geracao_retorna_none(self) -> None:
         self.assertIsNone(
@@ -1142,8 +1350,9 @@ class GraficoEconomiaAnualTests(TestCase):
         retorno = projetar_retorno(
             geracao_mensal_kwh=Decimal("500"),
             consumo_mensal_kwh=Decimal("500"),
-            tarifa_kwh=Decimal("1.385750"),
-            tusd_fio_b_kwh=Decimal("0.313783"),
+            tarifa_consumo_kwh=Decimal("1.385750"),
+            tarifa_injecao_kwh=Decimal("1.197480"),
+            fio_b_kwh=Decimal("0.441478"),
             tipo_ligacao="monofasico",
             cosip_mensal=Decimal("42.14"),
             ano_base=2026,
@@ -1237,22 +1446,39 @@ class RetornoFinanceiroDaPropostaTests(TestCase):
         )
         self.assertIsNone(proposta.retorno_financeiro)
 
-    def test_usa_os_parametros_regionais_de_configuracao(self) -> None:
-        """Fio B e COSIP vêm do painel de Configurações, não hardcoded."""
-        from configuracoes.models import Configuracao
-
-        config = Configuracao.atual()
-        config.tusd_fio_b_kwh = Decimal("0")
-        config.save()
-
+    def test_tarifa_digitada_e_marcada_como_manual(self) -> None:
+        """Sem distribuidora, cai na tarifa digitada da fatura — e o Fio B
+        fica zerado, porque não dá pra separar essa parcela sem a
+        decomposição da ANEEL."""
         proposta = _proposta(self.modulo)
-        proposta.tarifa_kwh = Decimal("1.00")
-        proposta.autoconsumo_simultaneo_pct = Decimal("0")
+        proposta.tarifa_kwh = Decimal("1.385750")
         proposta.save()
 
-        # Sem Fio B, cada kWh compensado vale a tarifa cheia.
         retorno = proposta.retorno_financeiro
-        self.assertEqual(retorno["fluxo_anual"][0]["tarifa_compensacao"], Decimal("1.000000"))
+        self.assertEqual(retorno["origem_tarifa"], "manual")
+        self.assertIsNone(retorno["vigencia_tarifa"])
+
+    def test_tarifa_da_aneel_tem_prioridade_sobre_a_digitada(self) -> None:
+        distribuidora = Distribuidora.objects.create(
+            nome="Energisa Tocantins", sigla="ETO", cnpj="25086034000171", uf="TO"
+        )
+        TarifaDistribuidora.objects.create(
+            distribuidora=distribuidora,
+            vigencia_inicio=date(2020, 1, 1),
+            vlr_tusd=Decimal("683.43"),
+            vlr_te=Decimal("322.63"),
+            vlr_tusd_fio_b=Decimal("441.478264"),
+        )
+        proposta = _proposta(self.modulo)
+        proposta.distribuidora = distribuidora
+        proposta.tarifa_kwh = Decimal("99.00")  # valor absurdo, deve ser ignorado
+        proposta.save()
+
+        retorno = proposta.retorno_financeiro
+        self.assertEqual(retorno["origem_tarifa"], "aneel")
+        self.assertAlmostEqual(
+            retorno["tarifa_consumo_kwh"], Decimal("1.385750"), delta=Decimal("0.0001")
+        )
 
     def test_payback_e_calculado_sobre_o_valor_total(self) -> None:
         proposta = _proposta(self.modulo)

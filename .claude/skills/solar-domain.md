@@ -339,18 +339,53 @@ PropostaSolar.objects.select_related("cliente", "modulo").prefetch_related(
 > **Implementado** em `solar/services.py`. Não reescrever a conta em outro
 > lugar — a lógica é sutil e está verificada contra fatura real.
 
-### ⚠️ O erro que essa seção existe para evitar
+### ⚠️ Os dois erros que essa seção existe para evitar
 
-`economia = geração × tarifa` **está errado** e superestima a economia. Foi
-exatamente assim que a primeira versão da feature saiu, e o usuário reprovou
-olhando a fatura dele. A geração de um sistema de GD **não** vale tarifa
-cheia, por três motivos independentes:
+**Erro 1 — `economia = geração × tarifa`.** Superestima. A geração de um
+sistema de GD **não** vale tarifa cheia, por quatro motivos independentes:
 
-1. **Fio B** — a parcela da TUSD cobrada sobre a energia *compensada*, que
-   sobe todo ano até 2028 (Lei 14.300, art. 27).
-2. **Custo de disponibilidade** — mínimo de 30/50/100 kWh (mono/bi/tri) que
+1. **Tributo sobre a injeção** — o crédito da energia injetada recebe ICMS
+   bem menor que o consumo. Vale para **todo** consumidor de GD.
+2. **Fio B** — parcela da TUSD cobrada sobre a energia *compensada*, que
+   sobe todo ano até 2028 (Lei 14.300, art. 27). Só para quem entrou na
+   regra nova (GDII).
+3. **Custo de disponibilidade** — mínimo de 30/50/100 kWh (mono/bi/tri) que
    o cliente paga mesmo gerando 100% do consumo (REN ANEEL 414/2010, art. 98).
-3. **COSIP** (contribuição de iluminação pública) — nunca é compensada.
+4. **COSIP** — nunca é compensada.
+
+**Erro 2 — confundir o item 1 com o item 2.** Este custou 29% de
+superestimativa e só foi pego quando o usuário mandou uma segunda fatura.
+
+A diferença entre as linhas "Consumo em kWh" e "Energia Atv Injetada" da
+fatura **não é o Fio B** — é tributo. Prova: a fatura de um consumidor GD1,
+que por direito adquirido **não paga Fio B nenhum**, tem exatamente a mesma
+diferença. Nas duas faturas a coluna "Tarifa Unit" (sem tributos) é idêntica
+para consumo e injeção; só o gross-up difere.
+
+O Fio B de verdade aparece como **linha própria e isenta de tributo**:
+`Ajuste GDII - TRF Reduzida (Lei 14.300/22)`. Se a fatura não tem essa
+linha, o cliente não paga Fio B.
+
+### Tributos — gross-up verificado
+
+A ANEEL publica a tarifa **sem tributos**; a fatura mostra **com**. ICMS e
+PIS/COFINS incidem "por dentro", em cascata:
+
+```
+tarifa_com_tributos = tarifa_aneel / (1 − PIS/COFINS) / (1 − ICMS)
+```
+
+Conferido em duas faturas, erro de 0,0005%:
+
+| Fatura | Tarifa Unit (ANEEL) | Calculado | Impresso |
+|---|---|---|---|
+| jul/2026 | 0,930220 | 1,281295 | 1,281290 |
+| ago/2026 | 1,006060 | 1,385758 | 1,385750 |
+
+A energia **injetada** leva ICMS efetivo de ~7,3% em vez de 20% (Lei
+estadual TO 1.287/2001, art. 27, VI — a base de cálculo do ICMS dessa linha
+é só ~36% do valor). Parametrizado em `Configuracao.icms_efetivo_injecao_pct`;
+reproduz a tarifa impressa com erro abaixo de 0,15%.
 
 ### Escala legal do Fio B
 
@@ -384,54 +419,105 @@ carga diurna 50–70%.
 ### Fórmula verificada
 
 ```python
-tarifa_compensacao = tarifa_cheia − (tusd_fio_b × percentual_fio_b(ano))
-
 autoconsumo   = min(geração × pct_simultâneo, consumo)
 injetada      = geração − autoconsumo
 consumo_rede  = consumo − autoconsumo
-compensada    = min(injetada, max(0, consumo_rede − custo_disponibilidade))
+compensada    = min(injetada, consumo_rede)
+ajuste        = fio_b_base × percentual_fio_b(ano)   # isento de tributo
 
-economia = autoconsumo × tarifa_cheia + compensada × tarifa_compensacao
-conta    = consumo_rede × tarifa_cheia − compensada × tarifa_compensacao + COSIP
+valor_energia = (consumo_rede × tarifa_consumo
+                 − compensada × tarifa_injecao
+                 + compensada × ajuste)
+valor_energia = max(valor_energia, custo_disponibilidade × tarifa_consumo)
+
+conta    = valor_energia + COSIP
+economia = consumo × tarifa_consumo − valor_energia
 ```
 
-### Âncora de verificação — fatura real Energisa TO
+> ⚠️ O custo de disponibilidade é **piso da conta**, não teto da
+> compensação. A fatura real compensa o consumo inteiro e só depois garante
+> o mínimo. Modelar como teto subestimava a economia em um mínimo inteiro
+> por mês.
 
-Fatura B1 residencial monofásico, ref. agosto/2026 (`RetornoGDContraFaturaRealTests`):
+### Âncoras de verificação — duas faturas reais da Energisa TO
 
-| Item da fatura | Quant. | Tarifa c/ tributos | Valor |
+Ambas B1 residencial monofásico (`RetornoGDContraFaturaRealTests`). São
+**duas** de propósito: uma só não separa tributo de Fio B.
+
+**Agosto/2026 — GD1 (direito adquirido, SEM Fio B):**
+
+| Item | Quant. | Tarifa c/ trib. | Valor |
 |---|---|---|---|
 | Consumo em kWh | 547 | 1,385750 | 758,00 |
-| Energia Atv Injetada GDI | 499 | **1,197480** | −597,54 |
+| Energia Atv Injetada **GDI** | 499 | 1,197480 | −597,54 |
 | Contrib de Ilum Pub | — | — | +42,14 |
-| Adic. Bandeira Amarela | — | — | +1,25 |
-| Bônus Itaipu | — | — | −4,46 |
+| Bandeira amarela / bônus Itaipu | — | — | +1,25 / −4,46 |
 | **Total** | | | **199,39** |
 
-A tarifa de compensação da fatura cai fora da fórmula:
+**Julho/2026 — GDII (regra nova, COM Fio B):**
 
-```
-1,385750 − (0,313783 × 0,60) = 1,197480   ← bate exatamente com a linha GDI
-```
+| Item | Quant. | Tarifa c/ trib. | Valor |
+|---|---|---|---|
+| Consumo em kWh | 380 | 1,281290 | 486,89 |
+| Energia Atv Injetada **GDII** | 380 | 1,104860 | −419,85 |
+| **Ajuste GDII - TRF Reduzida (Lei 14.300/22)** | 380 | **0,256550** | **+97,48** |
+| Contrib de Ilum Pub | — | — | +29,50 |
+| **Total** | | | **194,02** |
 
-É daí que sai o padrão `Configuracao.tusd_fio_b_kwh = 0,313783`.
+O ajuste vem **já reduzido pelo percentual do ano** (60% em 2026), então o
+Fio B a 100% é `0,256552 / 0,60 = 0,427587`. Compare com a ANEEL, que
+publica 0,441478 para o ciclo seguinte: −3,15%, exatamente a ordem de um
+reajuste anual.
 
 > Reproduzir a fatura **ao centavo não é possível**: a distribuidora arredonda
-> linha a linha e a tarifa impressa já é arredondada. O teste usa tolerância de
-> 2 centavos — forçar igualdade exata seria ajustar o cálculo a artefato de
+> linha a linha e a tarifa impressa já é arredondada. Os testes usam tolerância
+> de 2–5 centavos — forçar igualdade exata seria ajustar o cálculo a artefato de
 > arredondamento, não à regra de negócio.
 
 ### Parâmetros e onde ficam
 
 | Parâmetro | Onde | Padrão |
 |---|---|---|
-| `tarifa_kwh` | por proposta | — (sem ela, nada é calculado) |
+| `distribuidora` | por proposta | — (caminho preferido: puxa tudo da ANEEL) |
+| `tarifa_kwh` | por proposta | — (fallback quando não há distribuidora; então Fio B = 0) |
 | `tipo_ligacao` | por proposta | monofásico |
 | `autoconsumo_simultaneo_pct` | por proposta | 25% |
-| `tusd_fio_b_kwh` | `Configuracao` (regional) | 0,313783 |
-| `cosip_mensal` | `Configuracao` (regional) | 42,14 |
+| TUSD / TE / TUSD_FioB | `TarifaDistribuidora` (da ANEEL) | sincronizado |
+| `icms_pct` | `Configuracao` | 20% |
+| `pis_cofins_pct` | `Configuracao` | 9,25% |
+| `icms_efetivo_injecao_pct` | `Configuracao` | 7,30% |
+| `cosip_mensal` | `Configuracao` | 42,14 |
 | reajuste tarifário | constante em `services.py` | 7% a.a. |
 | degradação do módulo | constante em `services.py` | 0,5% a.a. |
+
+### Integração com a ANEEL — dados abertos
+
+`solar/aneel.py` + `python manage.py sincronizar_tarifas_aneel`
+
+API CKAN pública, **sem chave e sem cadastro**, só leitura. O dataset é
+`componentes-tarifarias` (não o consolidado de tarifas): é o único que traz
+`TUSD_FioB` **decomposto**, que é exatamente o que a análise de GD precisa.
+
+```bash
+python manage.py seed_distribuidoras            # cadastra ETO e vizinhas
+python manage.py sincronizar_tarifas_aneel      # ano atual
+python manage.py sincronizar_tarifas_aneel --ano 2026 --cnpj 25086034000171
+```
+
+Detalhes que já custaram tentativa e erro:
+
+- **Filtre por CNPJ, não por sigla.** A grafia de `SigNomeAgente` varia
+  entre os arquivos anuais; o CNPJ não. Energisa TO = `25086034000171`.
+- **O `resource_id` muda todo ano.** Resolva por `package_show` procurando
+  `componentes-tarifarias-<ano>.csv` — não fixe UUID no código.
+- **Nem todo ano está carregado no datastore.** O arquivo de 2025 existe
+  para download mas devolve 0 registros pela API; 2024 e 2026 funcionam.
+- **Só `DscBaseTarifaria == "Tarifa de Aplicação"`** é o que o cliente paga.
+  "Base Econômica" e "CVA" são outras visões do mesmo período.
+- **Valores em R$/MWh com vírgula decimal** ("683,43"), sem tributos.
+
+Validação: TUSD 683,43 + TE 322,63 = 1006,06 R$/MWh = 1,006060 R$/kWh —
+idêntico à coluna "Tarifa Unit" da fatura de agosto/2026.
 
 ### Ainda não implementado
 

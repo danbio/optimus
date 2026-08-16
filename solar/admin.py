@@ -2,7 +2,39 @@ from datetime import date
 
 from django.contrib import admin
 
-from .models import EstruturaFixacao, Inversor, MateriaisEletricos, ModuloFotovoltaico, PrecoEquipamentoSolar, TaxaCartao
+from .models import (
+    Distribuidora,
+    EstruturaFixacao,
+    Inversor,
+    MateriaisEletricos,
+    ModuloFotovoltaico,
+    PrecoEquipamentoSolar,
+    TarifaDistribuidora,
+    TaxaCartao,
+)
+
+
+@admin.register(Distribuidora)
+class DistribuidoraAdmin(admin.ModelAdmin):
+    list_display = ["nome", "sigla", "uf", "cnpj", "ativo"]
+    list_filter = ["uf", "ativo"]
+    search_fields = ["nome", "sigla", "cnpj"]
+
+
+@admin.register(TarifaDistribuidora)
+class TarifaDistribuidoraAdmin(admin.ModelAdmin):
+    """Só leitura: estes dados vêm da ANEEL via `sincronizar_tarifas_aneel`.
+    Editar à mão faria a próxima sincronização sobrescrever a alteração."""
+
+    list_display = ["distribuidora", "subgrupo", "subclasse", "vigencia_inicio", "vigencia_fim", "vlr_tusd", "vlr_te", "vlr_tusd_fio_b"]
+    list_filter = ["distribuidora", "subgrupo", "subclasse"]
+    date_hierarchy = "vigencia_inicio"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(MateriaisEletricos)
