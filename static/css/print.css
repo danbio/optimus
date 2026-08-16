@@ -107,21 +107,21 @@ body {
   height: auto;
   overflow: visible;
 }
+/* Sem text-anchor aqui de propósito: cada <text> traz o seu como atributo
+   (as pontas ancoram na borda pra não sair cortadas), e CSS venceria o
+   atributo de apresentação. */
 .doc-grafico .g-valor {
   font-size: 10px;
   font-weight: 700;
   fill: var(--texto-titulo);
-  text-anchor: middle;
 }
 .doc-grafico .g-ano {
   font-size: 9px;
   fill: var(--texto-corpo);
-  text-anchor: middle;
 }
 .doc-grafico .g-marcador {
   font-size: 9px;
   fill: var(--texto-titulo);
-  text-anchor: start;
 }
 
 .doc-assinaturas {

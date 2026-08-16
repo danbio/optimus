@@ -8,7 +8,7 @@ Verificado contra uma fatura real da Energisa Tocantins (B1 residencial
 monofásico, agosto/2026) — ver `RetornoGDContraFaturaRealTests`.
 """
 
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 # Percentual da TUSD Fio B cobrado sobre a energia compensada, por ano
 # (Lei 14.300/2022, art. 27). Antes de 2023 não havia cobrança; a partir de
@@ -70,6 +70,28 @@ def custo_disponibilidade_kwh(tipo_ligacao: str) -> int:
     return CUSTO_DISPONIBILIDADE_KWH.get(tipo_ligacao, 30)
 
 
+def formatar_prazo(anos: Decimal | None) -> str:
+    """Formata um prazo em anos como "3 anos e 2 meses".
+
+    Payback em decimal ("1,1 anos") não diz nada a um cliente — ele pensa
+    em meses. Arredonda para o mês mais próximo.
+    """
+    if anos is None:
+        return "—"
+
+    total_meses = int((anos * 12).to_integral_value(rounding=ROUND_HALF_UP))
+    if total_meses <= 0:
+        return "menos de 1 mês"
+
+    quantidade_anos, meses = divmod(total_meses, 12)
+    partes = []
+    if quantidade_anos:
+        partes.append(f"{quantidade_anos} ano" if quantidade_anos == 1 else f"{quantidade_anos} anos")
+    if meses:
+        partes.append(f"{meses} mês" if meses == 1 else f"{meses} meses")
+    return " e ".join(partes)
+
+
 def grafico_economia_anual(
     retorno: dict,
     largura: float = 680.0,
@@ -118,10 +140,21 @@ def grafico_economia_anual(
         # vira um desenho torto.
         raio = min(4.0, largura_barra / 2, altura_barra / 2) if altura_barra > 0 else 0.0
         direita = x + largura_barra
+        # Rótulo da primeira e da última barra encosta na borda do viewBox se
+        # for centralizado — ancora no canto pra não sair cortado.
+        if indice == 0:
+            ancora, rotulo_x = "start", 0.0
+        elif indice == total - 1:
+            ancora, rotulo_x = "end", largura
+        else:
+            ancora, rotulo_x = "middle", x + largura_barra / 2
+
         barras.append(
             {
                 "ano": str(ponto["ano"]),
                 "economia_ano": ponto["economia_ano"],
+                "ancora": ancora,
+                "rotulo_x": f"{rotulo_x:.2f}",
                 "centro_x": f"{x + largura_barra / 2:.2f}",
                 "path": (
                     f"M{x:.2f},{altura:.2f} "
@@ -139,7 +172,13 @@ def grafico_economia_anual(
         )
 
     payback = retorno.get("payback_anos")
-    payback_x = f"{float(payback) * passo:.2f}" if payback is not None else None
+    payback_x = float(payback) * passo if payback is not None else None
+    # Marcador perto da borda direita joga o texto pra fora; nesse caso o
+    # rótulo vai pra esquerda da linha tracejada.
+    if payback_x is not None and payback_x > largura * 0.75:
+        payback_ancora, payback_rotulo_x = "end", payback_x - 4
+    else:
+        payback_ancora, payback_rotulo_x = "start", payback_x + 4 if payback_x is not None else 0.0
 
     return {
         "view_box": f"0 {-margem_topo:.0f} {largura:.0f} {altura + margem_topo + margem_base:.0f}",
@@ -149,8 +188,9 @@ def grafico_economia_anual(
         "marcador_topo_y": f"{-margem_topo + 6:.0f}",
         "marcador_linha_y": f"{-margem_topo + 8:.0f}",
         "barras": barras,
-        "payback_x": payback_x,
-        "payback_rotulo_x": f"{float(payback) * passo + 4:.2f}" if payback is not None else None,
+        "payback_x": f"{payback_x:.2f}" if payback_x is not None else None,
+        "payback_rotulo_x": f"{payback_rotulo_x:.2f}" if payback_x is not None else None,
+        "payback_ancora": payback_ancora,
         "payback_anos": payback,
     }
 
@@ -237,7 +277,9 @@ def projetar_retorno(
             # Interpola dentro do ano para não arredondar o payback para cima.
             falta = valor_investimento - anterior
             fracao = (falta / economia_ano) if economia_ano > 0 else Decimal("0")
-            payback_anos = (Decimal(indice) + fracao).quantize(Decimal("0.1"))
+            # Precisão de 3 casas: 0,1 ano seria uma granularidade de ~1,2
+            # mês, grossa demais pra formatar "X anos e Y meses".
+            payback_anos = (Decimal(indice) + fracao).quantize(Decimal("0.001"))
 
         fluxo.append(
             {
@@ -263,6 +305,7 @@ def projetar_retorno(
         "conta_atual": conta_atual,
         "conta_estimada": conta_estimada,
         "payback_anos": payback_anos,
+        "payback_texto": formatar_prazo(payback_anos),
         "economia_total": acumulado.quantize(_CENTAVO),
         "autoconsumo_mensal_kwh": primeiro["autoconsumo_mensal_kwh"],
         "compensada_mensal_kwh": primeiro["compensada_mensal_kwh"],

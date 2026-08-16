@@ -131,7 +131,7 @@
     </div>
     <div class="item">
       <div class="rotulo">Investimento pago em</div>
-      <div class="valor">{% if retorno.payback_anos %}{{ retorno.payback_anos|floatformat:1 }} anos{% else %}—{% endif %}</div>
+      <div class="valor">{{ retorno.payback_texto }}</div>
     </div>
     <div class="item">
       <div class="rotulo">Economia acumulada em {{ retorno.anos }} anos</div>
@@ -143,8 +143,11 @@
 {% if grafico %}
 <div class="doc-secao">
   <h2>Economia projetada ano a ano</h2>
-  {# Coordenadas e anos vêm prontos como string de services.py — o template
-     localizaria os números (680,0 / 2.026) e quebraria o SVG. #}
+  {% comment %}
+    Coordenadas e anos vêm prontos como string de services.py — o template
+    localizaria os números (680,0 / 2.026) e quebraria o SVG.
+    {# #} de várias linhas NÃO é comentário no Django: vaza pro documento.
+  {% endcomment %}
   <svg class="doc-grafico" viewBox="{{ grafico.view_box }}"
        xmlns="http://www.w3.org/2000/svg" role="img"
        aria-label="Economia anual estimada ao longo de {{ retorno.anos }} anos.">
@@ -153,16 +156,16 @@
     {% for barra in grafico.barras %}
       <path d="{{ barra.path }}" fill="#00a335"/>
       {% if barra.rotulo_valor %}
-        <text x="{{ barra.centro_x }}" y="{{ barra.rotulo_valor_y }}" class="g-valor">R$ {{ barra.economia_ano|floatformat:0 }}</text>
+        <text x="{{ barra.rotulo_x }}" y="{{ barra.rotulo_valor_y }}" class="g-valor" text-anchor="{{ barra.ancora }}">R$ {{ barra.economia_ano|floatformat:0 }}</text>
       {% endif %}
       {% if barra.rotulo_ano %}
-        <text x="{{ barra.centro_x }}" y="{{ grafico.ano_y }}" class="g-ano">{{ barra.ano }}</text>
+        <text x="{{ barra.rotulo_x }}" y="{{ grafico.ano_y }}" class="g-ano" text-anchor="{{ barra.ancora }}">{{ barra.ano }}</text>
       {% endif %}
     {% endfor %}
     {% if grafico.payback_x %}
       <line x1="{{ grafico.payback_x }}" y1="{{ grafico.marcador_linha_y }}" x2="{{ grafico.payback_x }}" y2="{{ grafico.base_y }}"
             stroke="#3e5055" stroke-width="1" stroke-dasharray="3 3"/>
-      <text x="{{ grafico.payback_rotulo_x }}" y="{{ grafico.marcador_topo_y }}" class="g-marcador">investimento pago</text>
+      <text x="{{ grafico.payback_rotulo_x }}" y="{{ grafico.marcador_topo_y }}" class="g-marcador" text-anchor="{{ grafico.payback_ancora }}">pago em {{ retorno.payback_texto }}</text>
     {% endif %}
   </svg>
   <div style="font-size: 11px; color: var(--texto-corpo); margin-top: 6px;">

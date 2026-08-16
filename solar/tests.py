@@ -23,7 +23,13 @@ from .models import (
     PropostaSolar,
     TaxaCartao,
 )
-from .services import percentual_fio_b, projetar_retorno, tarifa_compensacao
+from .services import (
+    formatar_prazo,
+    grafico_economia_anual,
+    percentual_fio_b,
+    projetar_retorno,
+    tarifa_compensacao,
+)
 from .views._helpers import calcular_parcela_cartao
 
 # ---------------------------------------------------------------------------
@@ -686,7 +692,21 @@ class PropostaPrintTests(TestCase):
         reconhecido como comentário (só funciona numa linha só — usar
         {% comment %}...{% endcomment %} pra várias linhas). O template
         antigo vazou o texto do comentário direto pro documento que iria
-        pro cliente."""
+        pro cliente.
+
+        Com tarifa preenchida de propósito: sem ela as seções de retorno e
+        o gráfico nem renderizam, e foi exatamente por isso que este teste
+        deixou passar um segundo vazamento no bloco do gráfico."""
+        self.proposta.tarifa_kwh = Decimal("1.385750")
+        self.proposta.save()
+
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertNotIn("{#", corpo)
+        self.assertNotIn("#}", corpo)
+
+    def test_sem_comentario_vazando_tambem_sem_tarifa(self) -> None:
         resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
         corpo = resposta.content.decode("utf-8")
 
@@ -800,7 +820,7 @@ class PropostaPrintTests(TestCase):
             r'(?:x|y|x1|y1|x2|y2|width|height)="[-\d]+,',
             msg="coordenada com vírgula decimal — número foi localizado",
         )
-        self.assertRegex(svg, r'class="g-ano">\d{4}<', msg="ano não pode levar separador de milhar")
+        self.assertRegex(svg, r'class="g-ano"[^>]*>\d{4}<', msg="ano não pode levar separador de milhar")
 
     def test_pdf_explica_a_memoria_de_calculo_da_lei_14300(self) -> None:
         """O cliente detalhista precisa ver de onde saiu o número — e o Fio B
@@ -888,6 +908,33 @@ class PercentualFioBTests(TestCase):
         prometer menos que isso numa proposta seria arriscado."""
         self.assertEqual(percentual_fio_b(2029), Decimal("1"))
         self.assertEqual(percentual_fio_b(2040), Decimal("1"))
+
+
+class FormatarPrazoTests(TestCase):
+    """Payback em decimal ("1,1 anos") não comunica nada pro cliente — ele
+    pensa em meses. Pedido explícito do usuário."""
+
+    def test_anos_e_meses(self) -> None:
+        self.assertEqual(formatar_prazo(Decimal("3.5")), "3 anos e 6 meses")
+
+    def test_singular_de_ano_e_mes(self) -> None:
+        self.assertEqual(formatar_prazo(Decimal("1.0833")), "1 ano e 1 mês")
+
+    def test_ano_exato_nao_mostra_meses(self) -> None:
+        self.assertEqual(formatar_prazo(Decimal("2.0")), "2 anos")
+
+    def test_menos_de_um_ano_mostra_so_meses(self) -> None:
+        self.assertEqual(formatar_prazo(Decimal("0.5")), "6 meses")
+
+    def test_prazo_muito_curto(self) -> None:
+        self.assertEqual(formatar_prazo(Decimal("0.01")), "menos de 1 mês")
+
+    def test_sem_payback_nao_quebra(self) -> None:
+        self.assertEqual(formatar_prazo(None), "—")
+
+    def test_nao_sobra_decimal_no_texto(self) -> None:
+        """Regressão do formato antigo, que saía como "1,1 anos"."""
+        self.assertNotIn(",", formatar_prazo(Decimal("1.1")))
 
 
 class RetornoGDContraFaturaRealTests(TestCase):
@@ -1057,6 +1104,80 @@ class ProjetarRetornoTests(TestCase):
         self.assertIsNone(
             projetar_retorno(**{**self.BASE, "consumo_mensal_kwh": Decimal("0")})
         )
+
+
+class GraficoEconomiaAnualTests(TestCase):
+    """Geometria do gráfico do PDF. Ver solar/services.py."""
+
+    def _grafico(self, **extra):
+        extra.setdefault("valor_investimento", Decimal("20000"))
+        retorno = projetar_retorno(
+            geracao_mensal_kwh=Decimal("500"),
+            consumo_mensal_kwh=Decimal("500"),
+            tarifa_kwh=Decimal("1.385750"),
+            tusd_fio_b_kwh=Decimal("0.313783"),
+            tipo_ligacao="monofasico",
+            cosip_mensal=Decimal("42.14"),
+            ano_base=2026,
+            **extra,
+        )
+        return grafico_economia_anual(retorno)
+
+    def test_rotulos_das_pontas_ancoram_na_borda(self) -> None:
+        """Regressão: com text-anchor=middle os rótulos da primeira e da
+        última barra saíam cortados nas bordas do viewBox."""
+        grafico = self._grafico()
+
+        primeira, ultima = grafico["barras"][0], grafico["barras"][-1]
+        self.assertEqual(primeira["ancora"], "start")
+        self.assertEqual(primeira["rotulo_x"], "0.00")
+        self.assertEqual(ultima["ancora"], "end")
+        self.assertEqual(ultima["rotulo_x"], grafico["largura"] + ".00")
+
+    def test_barras_do_meio_ficam_centralizadas(self) -> None:
+        grafico = self._grafico()
+
+        self.assertEqual(grafico["barras"][10]["ancora"], "middle")
+
+    def test_todas_as_coordenadas_usam_ponto_decimal(self) -> None:
+        """Nenhum número pode sair com vírgula decimal — o SVG não leria.
+
+        Atenção: vírgula *é* separador legítimo de par de coordenadas num
+        path ("M0.00,170.00"), então o teste olha token a token em vez de
+        procurar vírgula na string inteira."""
+        import re
+
+        grafico = self._grafico()
+
+        for chave in ("view_box", "largura", "base_y", "ano_y", "payback_x"):
+            self.assertNotIn(",", str(grafico[chave]), msg=chave)
+
+        for barra in grafico["barras"]:
+            self.assertNotIn(",", barra["ano"])
+            self.assertNotIn(",", barra["rotulo_x"])
+            for token in re.findall(r"-?\d[\d.]*", barra["path"]):
+                self.assertIn(".", token, msg=f"{token} em {barra['path']}")
+
+    def test_marcador_de_payback_vira_para_dentro_perto_da_borda(self) -> None:
+        """Payback tardio jogaria o texto pra fora do gráfico."""
+        # R$ 246.787,75 é o acumulado no ano 20 de 25 — bem além dos 75% da
+        # largura em que o rótulo passa a ancorar à esquerda da linha.
+        tardio = self._grafico(valor_investimento=Decimal("246000"))
+
+        self.assertIsNotNone(tardio["payback_anos"])
+        self.assertEqual(tardio["payback_ancora"], "end")
+
+    def test_sem_payback_nao_desenha_marcador(self) -> None:
+        """Investimento que não se paga em 25 anos não ganha linha
+        tracejada — o template pula o bloco quando payback_x é None."""
+        caro = self._grafico(valor_investimento=Decimal("900000"))
+
+        self.assertIsNone(caro["payback_anos"])
+        self.assertIsNone(caro["payback_x"])
+
+    def test_sem_fluxo_retorna_none(self) -> None:
+        self.assertIsNone(grafico_economia_anual({"fluxo_anual": []}))
+        self.assertIsNone(grafico_economia_anual(None))
 
 
 class RetornoFinanceiroDaPropostaTests(TestCase):
