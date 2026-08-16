@@ -10,7 +10,11 @@
 | Item | Status | Bloqueia |
 |------|--------|----------|
 | Type Hints em views/services | 🔴 ~3% cobertura (24/725 funções) | Fase 2 (Async requer tipos corretos) |
-| Testes em apps sem cobertura | 🔴 0 testes em clientes, servicos, financeiro, pos_venda | Refatoração segura |
+| Testes em apps sem cobertura | 🟡 `financeiro` coberto (2026-08-16); faltam clientes, servicos, pos_venda | Refatoração segura |
+| **Faturamento duplicado no fluxo solar** | ✅ Corrigido (2026-08-16) | Auditoria externa achou; provado em teste (R$ 10k viravam R$ 20k). Agora aprovação lança equipamentos e faturamento da OS lança mão de obra. **Zero dano real** — nenhuma OS solar tinha sido faturada |
+| **Corrupção de itens na edição de proposta** | ✅ Corrigido (2026-08-16) | Causa-raiz: `formset.save(commit=False)` devolve só linhas novas/alteradas. Editar 1 de 2 linhas gravava 8 módulos em vez de 14 (potência caía de 5,6 para 3,2 kWp). Snapshot de preço também não atualizava ao trocar equipamento na mesma linha |
+| Travas de estado em proposta fechada | ✅ Feito (2026-08-16) | `SomenteRascunhoMixin` bloqueia editar/excluir fora do rascunho, no `dispatch` (barrar só o GET deixaria POST na mão passar) |
+| Transações atômicas nas transições | ✅ Feito (2026-08-16) | `aprovar_proposta` e `faturar_os` — status e lançamento financeiro agora sobem ou caem juntos |
 | Quebrar views >300 linhas | 🟡 solar feito, faltam ordens_servico, financeiro, estoque, servicos | Edição confiável por agentes |
 | Inline styles nos templates | 🟡 ~1190 ocorrências | Consistência de patches |
 | Async Views / Background Tasks | 🟡 Pendente | Nada, mas depende da Fase 1 |

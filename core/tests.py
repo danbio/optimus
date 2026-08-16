@@ -212,3 +212,50 @@ class DebugNuncaVazaParaProducaoTests(SimpleTestCase):
         """Sem DJANGO_ENV=production, DEBUG é True por padrão — é o que faz
         o CSS/estáticos carregarem em dev sem precisar rodar collectstatic."""
         self.assertTrue(self._debug_em({}))
+
+
+class TodoAppTemNamespaceTests(SimpleTestCase):
+    """Trava o fail-open apontado pela auditoria externa (2026-08-16).
+
+    `PermissaoPorGrupoMiddleware` libera para qualquer usuário autenticado
+    as rotas **sem namespace** — decisão deliberada, porque dashboard,
+    login e logout precisam ser abertos. O risco é de descuido: um app novo
+    incluído sem `app_name` herdaria essa liberação em silêncio, ficando
+    fora da matriz de permissões.
+
+    Este teste falha quando isso acontece, em vez de deixar o vazamento
+    passar despercebido até alguém notar em produção.
+    """
+
+    # Rotas de infraestrutura que devem mesmo ficar sem namespace.
+    SEM_NAMESPACE_PERMITIDO = {"", "admin"}
+
+    def test_todo_app_de_negocio_expoe_namespace(self) -> None:
+        from django.urls import get_resolver
+
+        resolver = get_resolver()
+        sem_namespace = []
+
+        for padrao in resolver.url_patterns:
+            urlconf = getattr(padrao, "urlconf_name", None)
+            # Só interessa `include()` de um módulo de urls de app.
+            if urlconf is None or not hasattr(padrao, "url_patterns"):
+                continue
+            nome_modulo = getattr(urlconf, "__name__", str(urlconf))
+            if not nome_modulo.endswith(".urls"):
+                continue
+            app = nome_modulo.rsplit(".", 1)[0]
+            if app in self.SEM_NAMESPACE_PERMITIDO:
+                continue
+            if not padrao.namespace:
+                sem_namespace.append(app)
+
+        self.assertEqual(
+            sem_namespace,
+            [],
+            msg=(
+                f"App(s) sem namespace: {sem_namespace}. Sem `app_name` em urls.py o "
+                "middleware de RBAC libera as rotas para qualquer usuário autenticado. "
+                "Defina `app_name` e adicione o app em core/permissoes.py."
+            ),
+        )

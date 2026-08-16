@@ -20,13 +20,13 @@ copy .env.example .env
 # editar .env e definir SECRET_KEY
 
 # 4. Aplicar migrações
-py manage.py migrate
+python manage.py migrate
 
 # 5. Criar superusuário
-py manage.py createsuperuser
+python manage.py createsuperuser
 
 # 6. Subir servidor
-py manage.py runserver
+python manage.py runserver
 ```
 
 Acesse: http://127.0.0.1:8000/
@@ -60,7 +60,7 @@ Acesse: http://127.0.0.1:8000/
 | `ordens_servico` | OS unificada com checklist, fotos e técnico responsável |
 | `financeiro` | Lançamentos, parcelas, baixas, dashboard de fluxo de caixa |
 | `balcao` | PDV com carrinho HTMX, baixa de estoque e lançamento financeiro |
-| `pos_venda` | Chamados e garantias (pendente de implementação) |
+| `pos_venda` | Chamados, interações e histórico do cliente |
 
 ---
 
@@ -71,7 +71,7 @@ Acesse: http://127.0.0.1:8000/
 | `/newapp <nome>` | Cria estrutura completa de um novo app Django |
 | `/scaffold <app> <Model>` | Gera CRUD completo (model, form, views, urls, templates) |
 | `/migrate` | Roda `makemigrations` + `migrate` |
-| `/check` | Roda `py manage.py check` |
+| `/check` | Roda `python manage.py check` |
 | `/test` | Roda a suíte de testes |
 | `/commit` | Formata e executa commit semântico |
 

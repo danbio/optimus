@@ -982,6 +982,202 @@ def _municipio(nome="Gurupi", uf="TO", codigo=1709500, hsp=None):
     )
 
 
+class EdicaoDePropostaNaoCorrompeItensTests(TestCase):
+    """Achados da auditoria externa de 2026-08-16.
+
+    Causa-raiz comum: `formset.save(commit=False)` devolve **apenas** as
+    linhas novas ou alteradas. Quem sup&otilde;e que ali est&aacute; o formset inteiro
+    calcula errado.
+    """
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.user = User.objects.create_user(username="vend_edicao", password="senha-de-teste")
+        cls.user.groups.add(Group.objects.get_or_create(name=GRUPO_ADMIN)[0])
+
+    def setUp(self) -> None:
+        self.client.force_login(self.user)
+        self.modulo = _modulo()          # 400 Wp
+        self.inversor = _inversor()      # 5 kW
+        self.cliente = _cliente()
+        _preco(self.modulo, Decimal("800"))
+        _preco(self.inversor, Decimal("4000"))
+
+    def _proposta_com(self, quantidades):
+        proposta = PropostaSolar.objects.create(
+            cliente=self.cliente, consumo_medio_kwh=350, hsp=Decimal("5.50"),
+            fator_eficiencia=Decimal("0.75"), potencia_kwp=Decimal("4.000"),
+            quantidade_modulos=sum(quantidades), modulo=self.modulo,
+            valor_instalacao=Decimal("0"),
+        )
+        itens = [
+            ItemPropostaSolar.objects.create(
+                proposta=proposta, modulo=self.modulo, quantidade=q,
+                preco_venda_snapshot=Decimal("800"), preco_custo_snapshot=Decimal("600"),
+                data_referencia_preco=date.today(),
+            )
+            for q in quantidades
+        ]
+        return proposta, itens
+
+    def _payload(self, proposta, linhas):
+        dados = {
+            "cliente": self.cliente.pk, "consumo_medio_kwh": "350", "modulo": self.modulo.pk,
+            "hsp": "5.5", "fator_eficiencia": "0.75", "valor_instalacao": "0",
+            "tipo_ligacao": PropostaSolar.LIGACAO_MONOFASICO,
+            "autoconsumo_simultaneo_pct": "25",
+            "validade": (date.today() + timedelta(days=30)).isoformat(), "observacoes": "",
+            "itens-TOTAL_FORMS": str(len(linhas)), "itens-INITIAL_FORMS": str(len(linhas)),
+            "itens-MIN_NUM_FORMS": "1", "itens-MAX_NUM_FORMS": "1000",
+        }
+        for indice, linha in enumerate(linhas):
+            for campo, valor in linha.items():
+                dados[f"itens-{indice}-{campo}"] = valor
+        return dados
+
+    def test_editar_uma_linha_nao_perde_a_contagem_das_outras(self) -> None:
+        """O caso que quebrava: duas linhas de 6, o vendedor mexe só na
+        primeira, e a proposta gravava 8 módulos em vez de 14 — derrubando
+        a potência de 5,6 para 3,2 kWp na ficha que vai pro cliente."""
+        proposta, (i1, i2) = self._proposta_com([6, 6])
+
+        resposta = self.client.post(
+            reverse("solar:editar", args=[proposta.pk]),
+            self._payload(proposta, [
+                {"id": i1.pk, "proposta": proposta.pk, "modulo": self.modulo.pk, "quantidade": "8"},
+                {"id": i2.pk, "proposta": proposta.pk, "modulo": self.modulo.pk, "quantidade": "6"},
+            ]),
+        )
+        proposta.refresh_from_db()
+
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(proposta.quantidade_modulos, 14)
+        self.assertEqual(proposta.quantidade_modulos, sum(i.quantidade for i in proposta.itens.all()))
+
+    def test_remover_a_linha_de_modulos_zera_o_dimensionamento(self) -> None:
+        """Sem módulo orçado não pode sobrar usina fantasma na proposta.
+
+        O formset exige ao menos uma linha (`min_num=1`), então o cenário
+        real não é "apagar tudo": é sobrar só o inversor na proposta."""
+        proposta, (i1,) = self._proposta_com([10])
+        item_inversor = ItemPropostaSolar.objects.create(
+            proposta=proposta, inversor=self.inversor, quantidade=1,
+            preco_venda_snapshot=Decimal("4000"), preco_custo_snapshot=Decimal("3000"),
+            data_referencia_preco=date.today(),
+        )
+
+        dados = self._payload(proposta, [
+            {"id": i1.pk, "proposta": proposta.pk, "modulo": self.modulo.pk, "quantidade": "10", "DELETE": "on"},
+            {"id": item_inversor.pk, "proposta": proposta.pk, "inversor": self.inversor.pk, "quantidade": "1"},
+        ])
+        resposta = self.client.post(reverse("solar:editar", args=[proposta.pk]), dados)
+        proposta.refresh_from_db()
+
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(proposta.quantidade_modulos, 0)
+        self.assertIsNone(proposta.modulo)
+        self.assertEqual(proposta.potencia_real_kwp, 0)
+
+    def test_trocar_equipamento_da_linha_atualiza_o_snapshot(self) -> None:
+        """Trocar o inversor na mesma linha cobrava o preço do antigo."""
+        proposta, (i1,) = self._proposta_com([10])
+        item_inversor = ItemPropostaSolar.objects.create(
+            proposta=proposta, modulo=None, inversor=self.inversor, quantidade=1,
+            preco_venda_snapshot=Decimal("1"), preco_custo_snapshot=Decimal("1"),
+            data_referencia_preco=date.today(),
+        )
+        outro = Inversor.objects.create(
+            fabricante="TestFab", modelo="INV10K", potencia_kw=10, tipo=Inversor.TIPO_STRING,
+            fase=Inversor.FASE_MONO, tensao_max_entrada=600, quantidade_mppt=2, garantia=5,
+        )
+        _preco(outro, Decimal("9999"))
+
+        self.client.post(
+            reverse("solar:editar", args=[proposta.pk]),
+            self._payload(proposta, [
+                {"id": i1.pk, "proposta": proposta.pk, "modulo": self.modulo.pk, "quantidade": "10"},
+                {"id": item_inversor.pk, "proposta": proposta.pk, "inversor": outro.pk, "quantidade": "1"},
+            ]),
+        )
+        item_inversor.refresh_from_db()
+
+        self.assertEqual(item_inversor.inversor, outro)
+        self.assertEqual(item_inversor.preco_venda_snapshot, Decimal("9999.00"))
+
+    def test_editar_sem_mexer_nos_itens_preserva_a_contagem(self) -> None:
+        """Mudar só um campo da proposta não pode zerar o dimensionamento."""
+        proposta, (i1,) = self._proposta_com([12])
+
+        dados = self._payload(proposta, [
+            {"id": i1.pk, "proposta": proposta.pk, "modulo": self.modulo.pk, "quantidade": "12"},
+        ])
+        dados["observacoes"] = "só mudei isto"
+        self.client.post(reverse("solar:editar", args=[proposta.pk]), dados)
+        proposta.refresh_from_db()
+
+        self.assertEqual(proposta.quantidade_modulos, 12)
+
+
+class TravaDeEdicaoPorStatusTests(TestCase):
+    """Proposta fechada não pode ser editada nem excluída: o lançamento
+    financeiro e a OS já partiram dela."""
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.user = User.objects.create_user(username="vend_trava", password="senha-de-teste")
+        cls.user.groups.add(Group.objects.get_or_create(name=GRUPO_ADMIN)[0])
+
+    def setUp(self) -> None:
+        self.client.force_login(self.user)
+        self.modulo = _modulo()
+
+    def _proposta(self, status):
+        proposta = _proposta(self.modulo)
+        proposta.status = status
+        proposta.save()
+        return proposta
+
+    def test_rascunho_continua_editavel(self) -> None:
+        proposta = self._proposta(PropostaSolar.STATUS_RASCUNHO)
+
+        resposta = self.client.get(reverse("solar:editar", args=[proposta.pk]))
+
+        self.assertEqual(resposta.status_code, 200)
+
+    def test_aprovada_nao_abre_o_formulario_de_edicao(self) -> None:
+        proposta = self._proposta(PropostaSolar.STATUS_APROVADA)
+
+        resposta = self.client.get(reverse("solar:editar", args=[proposta.pk]))
+
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn(str(proposta.pk), resposta.url)
+
+    def test_aprovada_tambem_rejeita_post_direto(self) -> None:
+        """Bloquear só o GET deixaria a porta aberta pra POST na mão."""
+        proposta = self._proposta(PropostaSolar.STATUS_APROVADA)
+        consumo_antes = proposta.consumo_medio_kwh
+
+        self.client.post(reverse("solar:editar", args=[proposta.pk]), {"consumo_medio_kwh": "9999"})
+        proposta.refresh_from_db()
+
+        self.assertEqual(proposta.consumo_medio_kwh, consumo_antes)
+
+    def test_concluida_nao_pode_ser_excluida(self) -> None:
+        proposta = self._proposta(PropostaSolar.STATUS_CONCLUIDA)
+
+        resposta = self.client.post(reverse("solar:excluir", args=[proposta.pk]))
+
+        self.assertEqual(resposta.status_code, 302)
+        self.assertTrue(PropostaSolar.objects.filter(pk=proposta.pk).exists())
+
+    def test_rascunho_continua_excluivel(self) -> None:
+        proposta = self._proposta(PropostaSolar.STATUS_RASCUNHO)
+
+        self.client.post(reverse("solar:excluir", args=[proposta.pk]))
+
+        self.assertFalse(PropostaSolar.objects.filter(pk=proposta.pk).exists())
+
+
 class MunicipioTests(TestCase):
     def test_hsp_do_mes_le_chave_string_do_json(self) -> None:
         """O JSONField volta do banco com as chaves em string."""

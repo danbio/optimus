@@ -7,6 +7,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
@@ -22,6 +23,7 @@ from ..forms import (
 from ..models import (
     EstruturaFixacao,
     Inversor,
+    ItemPropostaSolar,
     MateriaisEletricos,
     ModuloFotovoltaico,
     PrecoEquipamentoSolar,
@@ -118,7 +120,84 @@ class PropostaSolarCreateView(LoginRequiredMixin, CreateView):
         return HttpResponseRedirect(self.get_success_url())
 
 
-class PropostaSolarUpdateView(LoginRequiredMixin, UpdateView):
+def _equipamento_mudou(item) -> bool:
+    """O item já existia e teve o equipamento trocado nesta edição?
+
+    Sem isso o snapshot de preço fica preso ao equipamento antigo: o
+    vendedor troca o inversor na mesma linha e o cliente é cobrado pelo
+    preço do inversor anterior, mas leva o novo (achado da auditoria de
+    2026-08-16).
+    """
+    if not item.pk:
+        return False
+
+    anterior = ItemPropostaSolar.objects.filter(pk=item.pk).values(
+        "modulo_id", "inversor_id", "estrutura_id", "material_id"
+    ).first()
+    if not anterior:
+        return False
+
+    return (
+        anterior["modulo_id"] != item.modulo_id
+        or anterior["inversor_id"] != item.inversor_id
+        or anterior["estrutura_id"] != item.estrutura_id
+        or anterior["material_id"] != item.material_id
+    )
+
+
+def _sincronizar_dimensionamento(proposta) -> None:
+    """Recalcula módulo de referência e quantidade a partir dos itens
+    realmente gravados.
+
+    Precisa ler do banco: `formset.save(commit=False)` só devolve linhas
+    novas ou alteradas, então somar por ali contaria apenas parte dos
+    módulos. Editar uma linha de duas fazia a proposta gravar 8 módulos
+    quando havia 14 no banco — e a potência caía de 5,6 para 3,2 kWp.
+    """
+    itens_modulo = list(proposta.itens.filter(modulo__isnull=False).select_related("modulo"))
+
+    quantidade = sum(item.quantidade for item in itens_modulo)
+    modulo = itens_modulo[0].modulo if itens_modulo else None
+
+    atualizacoes = {}
+    if proposta.quantidade_modulos != quantidade:
+        atualizacoes["quantidade_modulos"] = quantidade
+    # Sem nenhum módulo na proposta, o de referência também sai — senão a
+    # ficha técnica segue anunciando uma usina que não está orçada.
+    if modulo and proposta.modulo_id != modulo.pk:
+        atualizacoes["modulo"] = modulo
+    elif not itens_modulo and proposta.modulo_id:
+        atualizacoes["modulo"] = None
+
+    if atualizacoes:
+        for campo, valor in atualizacoes.items():
+            setattr(proposta, campo, valor)
+        proposta.save(update_fields=[*atualizacoes.keys(), "atualizado_em"])
+
+
+class SomenteRascunhoMixin:
+    """Bloqueia a view quando a proposta saiu do rascunho.
+
+    Depois de enviada/aprovada a proposta virou documento: já pode ter ido
+    pro cliente, gerado lançamento financeiro e OS. Editar ou excluir a
+    partir daí quebra a trilha de auditoria e deixa registro órfão nos
+    outros apps. O bloqueio fica no `dispatch` de propósito — barrar só o
+    GET deixaria POST na mão passar.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        proposta = self.get_object()
+        if proposta.status != PropostaSolar.STATUS_RASCUNHO:
+            messages.error(
+                request,
+                f"A proposta {proposta.numero} está {proposta.get_status_display().lower()} "
+                "e não pode mais ser alterada. Cancele e reabra como rascunho se precisar mexer.",
+            )
+            return redirect("solar:detalhe", pk=proposta.pk)
+        return super().dispatch(request, *args, **kwargs)
+
+
+class PropostaSolarUpdateView(SomenteRascunhoMixin, LoginRequiredMixin, UpdateView):
     model = PropostaSolar
     form_class = PropostaSolarForm
     template_name = "solar/proposta_form.html"
@@ -152,29 +231,30 @@ class PropostaSolarUpdateView(LoginRequiredMixin, UpdateView):
 
         formset.instance = proposta
         hoje = date.today()
-        instances = formset.save(commit=False)
 
-        modulo_item = next((item for item in instances if item.modulo), None)
-        if modulo_item:
-            proposta.modulo = modulo_item.modulo
-            proposta.quantidade_modulos = sum(item.quantidade for item in instances if item.modulo)
-        elif not proposta.modulo_id:
-            proposta.modulo = PropostaSolar.objects.filter(pk=proposta.pk).values_list("modulo", flat=True).first()
+        with transaction.atomic():
+            proposta.save()
+            self.object = proposta
 
-        proposta.save()
-        self.object = proposta
+            instances = formset.save(commit=False)
 
-        for obj in formset.deleted_objects:
-            obj.delete()
+            for obj in formset.deleted_objects:
+                obj.delete()
 
-        for item in instances:
-            if not item.pk:
-                equip = item.modulo or item.inversor or item.estrutura or item.material
-                preco = PrecoEquipamentoSolar.get_preco_vigente(equip, hoje) if equip else None
-                item.preco_venda_snapshot = preco.preco_venda if preco else 0
-                item.preco_custo_snapshot = preco.preco_custo if preco else 0
-                item.data_referencia_preco = hoje
-            item.save()
+            # ⚠️ `formset.save(commit=False)` devolve só as linhas NOVAS ou
+            # ALTERADAS — nunca o formset inteiro. Por isso o snapshot é
+            # atualizado aqui (percorrendo `instances`), mas a contagem de
+            # módulos precisa vir do banco, depois de tudo salvo.
+            for item in instances:
+                if not item.pk or _equipamento_mudou(item):
+                    equip = item.modulo or item.inversor or item.estrutura or item.material
+                    preco = PrecoEquipamentoSolar.get_preco_vigente(equip, hoje) if equip else None
+                    item.preco_venda_snapshot = preco.preco_venda if preco else 0
+                    item.preco_custo_snapshot = preco.preco_custo if preco else 0
+                    item.data_referencia_preco = hoje
+                item.save()
+
+            _sincronizar_dimensionamento(proposta)
 
         messages.success(self.request, f"Proposta {proposta.numero} atualizada.")
         return HttpResponseRedirect(self.get_success_url())
@@ -268,7 +348,7 @@ def resumo_fechamento(request: HttpRequest, pk: int) -> HttpResponse:
     return render(request, "solar/_resumo_fechamento.html", ctx)
 
 
-class PropostaSolarDeleteView(LoginRequiredMixin, DeleteView):
+class PropostaSolarDeleteView(SomenteRascunhoMixin, LoginRequiredMixin, DeleteView):
     model = PropostaSolar
     template_name = "solar/proposta_confirm_delete.html"
     success_url = reverse_lazy("solar:lista")
@@ -423,12 +503,15 @@ def enviar_proposta(request: HttpRequest, pk: int) -> HttpResponse:
 def aprovar_proposta(request: HttpRequest, pk: int) -> HttpResponse:
     proposta = get_object_or_404(PropostaSolar, pk=pk)
     if proposta.status == PropostaSolar.STATUS_ENVIADA:
-        proposta.status = PropostaSolar.STATUS_APROVADA
-        proposta.save()
         from financeiro.services import criar_lancamento_de_proposta_solar
 
-        criar_lancamento_de_proposta_solar(proposta)
-        messages.success(request, f"Proposta {proposta.numero} aprovada! Lançamento financeiro gerado.")
+        # Atômico: se o lançamento falhar, a proposta não pode ficar
+        # aprovada sem contrapartida no financeiro.
+        with transaction.atomic():
+            proposta.status = PropostaSolar.STATUS_APROVADA
+            proposta.save()
+            criar_lancamento_de_proposta_solar(proposta)
+        messages.success(request, f"Proposta {proposta.numero} aprovada! Lançamento dos equipamentos gerado.")
     else:
         messages.error(request, "Apenas propostas Enviadas podem ser aprovadas.")
     return redirect("solar:detalhe", pk=pk)

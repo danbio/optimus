@@ -30,18 +30,31 @@ def _criar_parcelas(lancamento, num_parcelas, data_vencimento_base):
 
 
 def criar_lancamento_de_proposta_solar(proposta):
-    """Chamado em solar/views.py quando proposta muda para 'aprovada'."""
+    """Chamado em solar/views.py quando proposta muda para 'aprovada'.
+
+    Lança **só os equipamentos**. A mão de obra entra depois, quando a OS é
+    faturada (ver `criar_lancamento_de_ordem_servico`) — segue o caixa
+    real: o gerador é comprado no início, a instalação só se paga na
+    entrega. Somados, os dois fecham `proposta.valor_total`.
+
+    ⚠️ Até 2026-08-16 os dois lançavam `valor_total`, cobrando o cliente em
+    dobro. Ver `FaturamentoSolarSemDuplicidadeTests`.
+    """
     from .models import LancamentoFinanceiro
 
     # Evitar duplicata
     if LancamentoFinanceiro.objects.filter(proposta_solar=proposta).exists():
         return None
 
+    valor = proposta.valor_equipamentos or 0
+    if valor <= 0:
+        return None
+
     lan = LancamentoFinanceiro.objects.create(
-        descricao=f"Proposta Solar {proposta.numero}",
+        descricao=f"Proposta Solar {proposta.numero} — equipamentos",
         cliente=proposta.cliente,
         proposta_solar=proposta,
-        valor_bruto=proposta.valor_total,
+        valor_bruto=valor,
         desconto=0,
         data_vencimento=timezone.localdate() + datetime.timedelta(days=30),
     )
@@ -69,21 +82,31 @@ def criar_lancamento_de_proposta_servico(proposta):
 
 
 def criar_lancamento_de_ordem_servico(os_obj):
-    """Chamado em ordens_servico/views.py quando OS muda para 'faturada'."""
+    """Chamado em ordens_servico/views.py quando OS muda para 'faturada'.
+
+    Quando a OS vem de uma proposta, lança **só a mão de obra**: os
+    equipamentos já foram lançados na aprovação da proposta. Lançar o valor
+    total aqui cobraria o cliente duas vezes — foi exatamente o bug que a
+    auditoria de 2026-08-16 encontrou.
+    """
     from .models import LancamentoFinanceiro
 
     if LancamentoFinanceiro.objects.filter(ordem_servico=os_obj).exists():
         return None
 
-    # Tenta aproveitar o valor da proposta de origem
     valor = 0
     descricao = f"Ordem de Serviço {os_obj.numero}"
     if os_obj.proposta_solar:
-        valor = os_obj.proposta_solar.valor_total
-        descricao = f"OS {os_obj.numero} — Solar {os_obj.proposta_solar.numero}"
+        valor = os_obj.proposta_solar.valor_instalacao or 0
+        descricao = f"OS {os_obj.numero} — instalação Solar {os_obj.proposta_solar.numero}"
     elif os_obj.proposta_servico:
         valor = os_obj.proposta_servico.valor_total
         descricao = f"OS {os_obj.numero} — Serviço {os_obj.proposta_servico.numero}"
+
+    # Sem valor a cobrar não se cria lançamento: R$ 0,00 no contas a receber
+    # é ruído que ninguém sabe baixar.
+    if valor <= 0:
+        return None
 
     lan = LancamentoFinanceiro.objects.create(
         descricao=descricao,

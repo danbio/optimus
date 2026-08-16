@@ -397,11 +397,14 @@ def concluir_os(request, pk):
 def faturar_os(request, pk):
     os_obj = get_object_or_404(OrdemServico, pk=pk)
     if os_obj.status == OrdemServico.STATUS_CONCLUIDA:
-        os_obj.status = OrdemServico.STATUS_FATURADA
-        os_obj.save()
         from financeiro.services import criar_lancamento_de_ordem_servico
 
-        criar_lancamento_de_ordem_servico(os_obj)
+        # Atômico: OS faturada sem lançamento correspondente seria receita
+        # perdida silenciosamente.
+        with transaction.atomic():
+            os_obj.status = OrdemServico.STATUS_FATURADA
+            os_obj.save()
+            criar_lancamento_de_ordem_servico(os_obj)
         messages.success(request, f"OS {os_obj.numero} faturada! Lançamento financeiro gerado.")
     else:
         messages.error(request, "Apenas OS concluídas podem ser faturadas.")
