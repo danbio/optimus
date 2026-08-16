@@ -143,6 +143,10 @@
 {% if grafico %}
 <div class="doc-secao">
   <h2>Economia projetada ano a ano</h2>
+  <div style="font-size: 12px; color: var(--texto-corpo); margin: -4px 0 10px;">
+    Cada barra é quanto deixa de ser pago com energia <strong>naquele ano</strong>. Somadas, as
+    {{ retorno.anos }} barras dão os R$ {{ retorno.economia_total|floatformat:2 }} de economia acumulada.
+  </div>
   {% comment %}
     Coordenadas e anos vêm prontos como string de services.py — o template
     localizaria os números (680,0 / 2.026) e quebraria o SVG.
@@ -156,7 +160,7 @@
     {% for barra in grafico.barras %}
       <path d="{{ barra.path }}" fill="#00a335"/>
       {% if barra.rotulo_valor %}
-        <text x="{{ barra.rotulo_x }}" y="{{ barra.rotulo_valor_y }}" class="g-valor" text-anchor="{{ barra.ancora }}">R$ {{ barra.economia_ano|floatformat:0 }}</text>
+        <text x="{{ barra.rotulo_x }}" y="{{ barra.rotulo_valor_y }}" class="g-valor" text-anchor="{{ barra.ancora }}">R$ {{ barra.economia_ano|floatformat:0 }}/ano</text>
       {% endif %}
       {% if barra.rotulo_ano %}
         <text x="{{ barra.rotulo_x }}" y="{{ grafico.ano_y }}" class="g-ano" text-anchor="{{ barra.ancora }}">{{ barra.ano }}</text>

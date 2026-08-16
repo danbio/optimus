@@ -799,6 +799,18 @@ class PropostaPrintTests(TestCase):
         self.assertIn("doc-grafico", corpo)
         self.assertNotIn("<script", corpo)
 
+    def test_rotulo_do_grafico_diz_que_o_valor_e_anual(self) -> None:
+        """O usuário olhou o gráfico e não soube dizer se "R$ 12.355" era
+        mensal, anual ou acumulado — valor sem unidade é ambíguo."""
+        self.proposta.tarifa_kwh = Decimal("1.385750")
+        self.proposta.save()
+
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertRegex(corpo, r"class=\"g-valor\"[^>]*>R\$ [\d.]+/ano<")
+        self.assertIn("naquele ano", corpo)
+
     def test_svg_nao_sofre_localizacao_de_numero(self) -> None:
         """Regressão: com USE_THOUSAND_SEPARATOR=True o template localiza
         qualquer número que receba — o viewBox virou "680,0" e o ano virou
