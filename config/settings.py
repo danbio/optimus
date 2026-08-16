@@ -136,6 +136,11 @@ LANGUAGE_CODE = "pt-br"
 TIME_ZONE = "America/Araguaina"
 USE_I18N = True
 USE_TZ = True
+# Formata todo |floatformat no padrão brasileiro (R$ 1.234.567,89). Os widgets
+# de formulário não são localizados por padrão (is_localized=False), então os
+# <input type="number"> continuam recebendo o valor cru ("12345.67") — sem isso
+# o navegador rejeitaria o valor com separador de milhar.
+USE_THOUSAND_SEPARATOR = True
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]

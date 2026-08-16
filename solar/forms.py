@@ -15,6 +15,9 @@ class PropostaSolarForm(forms.ModelForm):
             "hsp",
             "fator_eficiencia",
             "valor_instalacao",
+            "tarifa_kwh",
+            "tipo_ligacao",
+            "autoconsumo_simultaneo_pct",
             "validade",
             "observacoes",
         ]
@@ -35,6 +38,11 @@ class PropostaSolarForm(forms.ModelForm):
         self.fields["fator_eficiencia"].widget.attrs.update({"placeholder": "0.75", "inputmode": "decimal", "step": "0.01"})
 
         self.fields["valor_instalacao"].widget.attrs.update({"placeholder": "0,00", "inputmode": "decimal", "step": "0.01"})
+        self.fields["tarifa_kwh"].required = False
+        self.fields["tarifa_kwh"].widget.attrs.update({"placeholder": "Ex: 1,385750", "inputmode": "decimal", "step": "0.000001"})
+        self.fields["autoconsumo_simultaneo_pct"].widget.attrs.update(
+            {"placeholder": "25", "inputmode": "decimal", "step": "1", "min": "0", "max": "100"}
+        )
         self.fields["validade"].widget.attrs["type"] = "date"
         self.fields["observacoes"].widget = forms.Textarea(
             attrs={

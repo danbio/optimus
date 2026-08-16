@@ -23,6 +23,8 @@
 | PDF de propostas | ✅ Feito (2026-08-13) | `@media print` + `window.print()`, sem lib externa — ver skill solar-domain §12 |
 | Sugestão automática de inversor compatível | ✅ Feito (2026-08-13) | Relação CC:CA, faixa configurável em `/configuracoes/` — ver skill solar-domain §2.1 |
 | Resumo de fechamento (copiar/colar p/ WhatsApp) | ✅ Feito (2026-08-13) | Card em `proposta_detail.html` — geração, equipamento, valor à vista. Ainda sem financiamento/cartão |
+| Payback / economia conforme Lei 14.300 | ✅ Feito (2026-08-16) | Motor em `solar/services.py`, verificado contra fatura real da Energisa TO. Fio B gradual, custo de disponibilidade, COSIP e autoconsumo simultâneo — ver skill solar-domain §8 |
+| Formatação de moeda `R$ 1.234.567,89` | ✅ Feito (2026-08-16) | `USE_THOUSAND_SEPARATOR=True` — vale para o app inteiro. **Cuidado:** localiza todo número no template, inclusive anos e coordenadas de SVG (ver AGENTS.md) |
 | Financiamento / parcelamento no cartão | ✅ Feito (2026-08-15) | Modelo `TaxaCartao` + admin + seed com tabela real Intelbras (87 linhas) + resumo de fechamento com bandeira/entrada via HTMX — ver skill solar-domain §13. Financiamento bancário segue fora de escopo (lógica própria) |
 
 > **Hospedagem:** o plano atual (Hostinger Business Web Hosting) **não roda

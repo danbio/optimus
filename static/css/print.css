@@ -100,6 +100,30 @@ body {
   margin-top: 2px;
 }
 
+/* Gráfico de barras da economia anual — SVG inline gerado no servidor
+   (solar/services.py::grafico_economia_anual), sem lib de gráfico. */
+.doc-grafico {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.doc-grafico .g-valor {
+  font-size: 10px;
+  font-weight: 700;
+  fill: var(--texto-titulo);
+  text-anchor: middle;
+}
+.doc-grafico .g-ano {
+  font-size: 9px;
+  fill: var(--texto-corpo);
+  text-anchor: middle;
+}
+.doc-grafico .g-marcador {
+  font-size: 9px;
+  fill: var(--texto-titulo);
+  text-anchor: start;
+}
+
 .doc-assinaturas {
   display: grid;
   grid-template-columns: 1fr 1fr;

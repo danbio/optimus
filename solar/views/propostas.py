@@ -28,6 +28,7 @@ from ..models import (
     PropostaSolar,
     TaxaCartao,
 )
+from ..services import grafico_economia_anual
 from ._helpers import calcular_kwp, calcular_parcela_cartao, inversores_compativeis
 
 # ── CRUD de Propostas ─────────────────────────────────────────────────────────
@@ -207,16 +208,20 @@ def proposta_print(request: HttpRequest, pk: int) -> HttpResponse:
     )
     itens = proposta.itens.select_related("modulo", "inversor", "estrutura", "material")
 
-    # Não calculamos payback/economia em R$ aqui de propósito: exigiria uma
-    # tarifa (R$/kWh), e nem Cliente nem PropostaSolar têm esse campo hoje —
-    # inventar um número herdaria risco comercial (prometer economia sem
-    # dado real por trás). geracao_mensal_kwh (projeção técnica, não
-    # financeira) já é uma property do model — ver PropostaSolar.
+    # A análise de retorno só aparece quando o vendedor informou a tarifa do
+    # cliente — sem esse dado real, `retorno_financeiro` devolve None e o
+    # template omite a seção inteira em vez de estimar economia no chute.
+    retorno = proposta.retorno_financeiro
 
     return render(
         request,
         "solar/proposta_print.html",
-        {"proposta": proposta, "itens": itens},
+        {
+            "proposta": proposta,
+            "itens": itens,
+            "retorno": retorno,
+            "grafico": grafico_economia_anual(retorno) if retorno else None,
+        },
     )
 
 

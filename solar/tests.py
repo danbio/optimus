@@ -23,6 +23,7 @@ from .models import (
     PropostaSolar,
     TaxaCartao,
 )
+from .services import percentual_fio_b, projetar_retorno, tarifa_compensacao
 from .views._helpers import calcular_parcela_cartao
 
 # ---------------------------------------------------------------------------
@@ -498,6 +499,8 @@ class DimensionamentoConectadoAosItensTests(TestCase):
             "hsp": "5.5",
             "fator_eficiencia": "0.75",
             "valor_instalacao": "0",
+            "tipo_ligacao": PropostaSolar.LIGACAO_MONOFASICO,
+            "autoconsumo_simultaneo_pct": "25",
             "validade": (date.today() + timedelta(days=30)).isoformat(),
             "observacoes": "",
             "itens-TOTAL_FORMS": "1",
@@ -742,6 +745,77 @@ class PropostaPrintTests(TestCase):
 
         self.assertIn(reverse("solar:imprimir", args=[self.proposta.pk]), corpo)
 
+    def test_retorno_financeiro_nao_aparece_sem_tarifa(self) -> None:
+        """Sem tarifa_kwh informada, a seção some do PDF — não inventa
+        número de payback/economia sem dado real do cliente."""
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertNotIn("Retorno do investimento", corpo)
+
+    def test_retorno_financeiro_aparece_com_tarifa_informada(self) -> None:
+        self.proposta.tarifa_kwh = Decimal("1.385750")
+        self.proposta.save()
+
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn("Retorno do investimento", corpo)
+        self.assertIn("Investimento pago em", corpo)
+        self.assertIn("Economia acumulada em 25 anos", corpo)
+
+    def test_grafico_de_barras_e_svg_inline_sem_biblioteca(self) -> None:
+        """O PDF sai por window.print(): o gráfico precisa ser SVG servido
+        no próprio HTML, não um <script> de biblioteca que a janela de
+        impressão pode não ter tempo de executar."""
+        self.proposta.tarifa_kwh = Decimal("1.385750")
+        self.proposta.save()
+
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn("Economia projetada ano a ano", corpo)
+        self.assertIn("<svg", corpo)
+        self.assertIn("doc-grafico", corpo)
+        self.assertNotIn("<script", corpo)
+
+    def test_svg_nao_sofre_localizacao_de_numero(self) -> None:
+        """Regressão: com USE_THOUSAND_SEPARATOR=True o template localiza
+        qualquer número que receba — o viewBox virou "680,0" e o ano virou
+        "2.026", quebrando o gráfico. As coordenadas e os anos precisam sair
+        de services.py já como string."""
+        import re
+        import xml.etree.ElementTree as ET
+
+        self.proposta.tarifa_kwh = Decimal("1.385750")
+        self.proposta.save()
+
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+        svg = re.search(r"<svg.*?</svg>", corpo, re.S).group(0)
+
+        ET.fromstring(svg)  # levanta se o SVG estiver malformado
+        self.assertNotRegex(
+            svg,
+            r'(?:x|y|x1|y1|x2|y2|width|height)="[-\d]+,',
+            msg="coordenada com vírgula decimal — número foi localizado",
+        )
+        self.assertRegex(svg, r'class="g-ano">\d{4}<', msg="ano não pode levar separador de milhar")
+
+    def test_pdf_explica_a_memoria_de_calculo_da_lei_14300(self) -> None:
+        """O cliente detalhista precisa ver de onde saiu o número — e o Fio B
+        precisa estar explícito, não escondido dentro do total."""
+        self.proposta.tarifa_kwh = Decimal("1.385750")
+        self.proposta.save()
+
+        resposta = self.client.get(reverse("solar:imprimir", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn("Como esta conta foi feita", corpo)
+        self.assertIn("Fio B", corpo)
+        self.assertIn("Lei 14.300/2022", corpo)
+        self.assertIn("Mínimo faturado pela distribuidora", corpo)
+
 
 # ---------------------------------------------------------------------------
 # Resumo de fechamento (copiar/colar) — geracao_mensal_kwh, inversor_principal
@@ -792,6 +866,260 @@ class PropriedadesDeResumoTests(TestCase):
             data_referencia_preco=date.today(),
         )
         self.assertEqual(proposta.quantidade_inversores, 2)
+
+
+class PercentualFioBTests(TestCase):
+    """Escala do art. 27 da Lei 14.300/2022."""
+
+    def test_escala_legal_ano_a_ano(self) -> None:
+        esperado = {
+            2023: Decimal("0.15"), 2024: Decimal("0.30"), 2025: Decimal("0.45"),
+            2026: Decimal("0.60"), 2027: Decimal("0.75"), 2028: Decimal("0.90"),
+        }
+        for ano, pct in esperado.items():
+            self.assertEqual(percentual_fio_b(ano), pct, msg=f"ano {ano}")
+
+    def test_antes_de_2023_nao_havia_cobranca(self) -> None:
+        self.assertEqual(percentual_fio_b(2022), Decimal("0"))
+
+    def test_de_2029_em_diante_assume_cobranca_integral(self) -> None:
+        """A ANEEL redefine a metodologia a partir de 2029 (art. 28). Até
+        haver regra publicada, assumir 100% é a hipótese conservadora —
+        prometer menos que isso numa proposta seria arriscado."""
+        self.assertEqual(percentual_fio_b(2029), Decimal("1"))
+        self.assertEqual(percentual_fio_b(2040), Decimal("1"))
+
+
+class RetornoGDContraFaturaRealTests(TestCase):
+    """Âncora de verificação do motor de cálculo: reproduz uma fatura real
+    da Energisa Tocantins (B1 residencial monofásico, referência agosto/2026,
+    consumidor GD). Se algum destes testes quebrar, o cálculo deixou de
+    corresponder ao que a distribuidora realmente cobra."""
+
+    TARIFA = Decimal("1.385750")   # linha "Consumo em kWh", com tributos
+    FIO_B = Decimal("0.313783")    # padrão de Configuracao
+    CONSUMO = Decimal("547")       # kWh lidos do medidor
+    INJETADA = Decimal("499")      # kWh injetados na rede
+    COSIP = Decimal("42.14")       # Contrib de Ilum Pub
+
+    def test_tarifa_de_compensacao_bate_com_a_linha_gdi_da_fatura(self) -> None:
+        """A fatura credita a energia injetada a 1,197480 R$/kWh, não à
+        tarifa cheia de 1,385750 — a diferença é o Fio B a 60% (2026)."""
+        tarifa = tarifa_compensacao(self.TARIFA, self.FIO_B, 2026)
+
+        self.assertEqual(tarifa.quantize(Decimal("0.000001")), Decimal("1.197480"))
+
+    def test_valor_creditado_bate_com_a_fatura(self) -> None:
+        tarifa = tarifa_compensacao(self.TARIFA, self.FIO_B, 2026)
+        creditado = (self.INJETADA * tarifa).quantize(Decimal("0.01"))
+
+        self.assertEqual(creditado, Decimal("597.54"))
+
+    def test_conta_estimada_reproduz_a_fatura(self) -> None:
+        """Fatura real: 758,00 (consumo) − 597,54 (injetada) + 42,14 (COSIP)
+        + 1,25 (bandeira) − 4,46 (bônus Itaipu) = 199,39.
+
+        O motor não modela bandeira nem bônus (itens transitórios), então
+        deve fechar em ~202,60 — a fatura sem essas duas linhas.
+
+        Tolerância de 2 centavos porque a distribuidora arredonda cada
+        linha antes de somar e a tarifa impressa (1,385750) já é um
+        arredondamento da tarifa-base com gross-up de tributos. Exigir
+        igualdade ao centavo seria ajustar o cálculo a artefato de
+        arredondamento, não à regra de negócio."""
+        # 100% injetado: é o cenário que a fatura registra (o medidor só vê
+        # o que passa pela rede).
+        retorno = projetar_retorno(
+            valor_investimento=Decimal("20000"),
+            geracao_mensal_kwh=self.INJETADA,
+            consumo_mensal_kwh=self.CONSUMO,
+            tarifa_kwh=self.TARIFA,
+            tusd_fio_b_kwh=self.FIO_B,
+            tipo_ligacao="monofasico",
+            cosip_mensal=self.COSIP,
+            ano_base=2026,
+            autoconsumo_simultaneo_pct=Decimal("0"),
+        )
+
+        self.assertEqual(retorno["economia_mensal"], Decimal("597.54"))
+
+        total_modelado = retorno["conta_estimada"] + Decimal("1.25") - Decimal("4.46")
+        self.assertAlmostEqual(
+            total_modelado,
+            Decimal("199.39"),
+            delta=Decimal("0.02"),
+            msg="deveria fechar com o total real da fatura (R$ 199,39)",
+        )
+
+
+class ProjetarRetornoTests(TestCase):
+    """Regras de GD que o cálculo ingênuo (geração × tarifa) ignorava."""
+
+    BASE = dict(
+        valor_investimento=Decimal("20000"),
+        geracao_mensal_kwh=Decimal("500"),
+        consumo_mensal_kwh=Decimal("500"),
+        tarifa_kwh=Decimal("1.385750"),
+        tusd_fio_b_kwh=Decimal("0.313783"),
+        tipo_ligacao="monofasico",
+        cosip_mensal=Decimal("42.14"),
+        ano_base=2026,
+    )
+
+    def test_economia_e_menor_que_geracao_vezes_tarifa(self) -> None:
+        """Regressão do bug original: o cálculo antigo era geração × tarifa
+        cheia, que superestima porque ignora Fio B e custo de
+        disponibilidade."""
+        retorno = projetar_retorno(**self.BASE)
+        ingenuo = Decimal("500") * Decimal("1.385750")
+
+        self.assertLess(retorno["economia_mensal"], ingenuo)
+
+    def test_custo_de_disponibilidade_limita_a_compensacao(self) -> None:
+        """Mesmo gerando muito mais que consome, o cliente monofásico segue
+        pagando os 30 kWh mínimos."""
+        retorno = projetar_retorno(**{**self.BASE, "geracao_mensal_kwh": Decimal("5000")})
+
+        self.assertEqual(retorno["custo_disponibilidade_kwh"], 30)
+        self.assertEqual(retorno["compensada_mensal_kwh"], Decimal("470.00"))  # 500 − 30
+
+    def test_trifasico_paga_minimo_maior(self) -> None:
+        retorno = projetar_retorno(**{**self.BASE, "tipo_ligacao": "trifasico"})
+
+        self.assertEqual(retorno["custo_disponibilidade_kwh"], 100)
+        self.assertEqual(retorno["compensada_mensal_kwh"], Decimal("400.00"))  # 500 − 100
+
+    def test_autoconsumo_simultaneo_economiza_mais_que_injetar(self) -> None:
+        """O kWh consumido na hora não passa pela rede, logo não sofre Fio B
+        — vale a tarifa cheia, mais que o kWh injetado."""
+        sem = projetar_retorno(**{**self.BASE, "autoconsumo_simultaneo_pct": Decimal("0")})
+        com = projetar_retorno(**{**self.BASE, "autoconsumo_simultaneo_pct": Decimal("50")})
+
+        self.assertGreater(com["economia_mensal"], sem["economia_mensal"])
+
+    def test_autoconsumo_total_economiza_a_tarifa_cheia(self) -> None:
+        retorno = projetar_retorno(
+            **{**self.BASE, "autoconsumo_simultaneo_pct": Decimal("100")}
+        )
+        cheia = (Decimal("500") * Decimal("1.385750")).quantize(Decimal("0.01"))
+
+        self.assertEqual(retorno["autoconsumo_mensal_kwh"], Decimal("500.00"))
+        self.assertEqual(retorno["economia_mensal"], cheia)
+
+    def test_economia_cai_quando_o_fio_b_sobe(self) -> None:
+        """Entre 2026 (60%) e 2028 (90%) a mesma usina economiza menos."""
+        em_2026 = projetar_retorno(**{**self.BASE, "ano_base": 2026})
+        em_2028 = projetar_retorno(**{**self.BASE, "ano_base": 2028})
+
+        self.assertLess(em_2028["economia_mensal"], em_2026["economia_mensal"])
+
+    def test_conta_estimada_e_conta_atual_menos_economia(self) -> None:
+        retorno = projetar_retorno(**self.BASE)
+
+        self.assertEqual(
+            retorno["conta_estimada"],
+            retorno["conta_atual"] - retorno["economia_mensal"],
+        )
+
+    def test_cosip_nunca_e_compensada(self) -> None:
+        """A iluminação pública continua na conta mesmo com a usina."""
+        retorno = projetar_retorno(**{**self.BASE, "geracao_mensal_kwh": Decimal("10000")})
+
+        self.assertGreaterEqual(retorno["conta_estimada"], Decimal("42.14"))
+
+    def test_fluxo_anual_tem_25_anos_e_acumula(self) -> None:
+        retorno = projetar_retorno(**self.BASE)
+        fluxo = retorno["fluxo_anual"]
+
+        self.assertEqual(len(fluxo), 25)
+        self.assertEqual(fluxo[0]["ano"], 2026)
+        self.assertEqual(fluxo[-1]["ano"], 2050)
+        self.assertEqual(fluxo[-1]["acumulado"], retorno["economia_total"])
+        for anterior, seguinte in zip(fluxo, fluxo[1:]):
+            self.assertGreater(seguinte["acumulado"], anterior["acumulado"])
+
+    def test_geracao_degrada_ao_longo_dos_anos(self) -> None:
+        fluxo = projetar_retorno(**self.BASE)["fluxo_anual"]
+
+        self.assertLess(
+            fluxo[-1]["geracao_mensal_kwh"], fluxo[0]["geracao_mensal_kwh"]
+        )
+
+    def test_sem_tarifa_retorna_none(self) -> None:
+        self.assertIsNone(projetar_retorno(**{**self.BASE, "tarifa_kwh": None}))
+
+    def test_sem_geracao_retorna_none(self) -> None:
+        self.assertIsNone(
+            projetar_retorno(**{**self.BASE, "geracao_mensal_kwh": Decimal("0")})
+        )
+
+    def test_sem_consumo_retorna_none(self) -> None:
+        self.assertIsNone(
+            projetar_retorno(**{**self.BASE, "consumo_mensal_kwh": Decimal("0")})
+        )
+
+
+class RetornoFinanceiroDaPropostaTests(TestCase):
+    """PropostaSolar.retorno_financeiro — integração do model com o motor."""
+
+    def setUp(self) -> None:
+        self.modulo = _modulo()  # 400 Wp
+        self.inversor = _inversor()  # 5 kW
+
+    def test_sem_tarifa_retorna_none(self) -> None:
+        proposta = _proposta(self.modulo)
+        self.assertIsNone(proposta.retorno_financeiro)
+
+    def test_tarifa_zero_retorna_none(self) -> None:
+        """Não inventa número: tarifa 0 é tratada como "não informada"."""
+        proposta = _proposta(self.modulo)
+        proposta.tarifa_kwh = Decimal("0")
+        proposta.save()
+        self.assertIsNone(proposta.retorno_financeiro)
+
+    def test_sem_geracao_retorna_none(self) -> None:
+        """Proposta sem módulo de referência não tem geração projetada —
+        mesmo com tarifa informada, não há economia pra calcular."""
+        proposta = PropostaSolar.objects.create(
+            cliente=_cliente(), consumo_medio_kwh=350, hsp=Decimal("5.50"),
+            fator_eficiencia=Decimal("0.75"), potencia_kwp=Decimal("0"),
+            quantidade_modulos=0, valor_instalacao=Decimal("0"),
+            tarifa_kwh=Decimal("0.95"),
+        )
+        self.assertIsNone(proposta.retorno_financeiro)
+
+    def test_usa_os_parametros_regionais_de_configuracao(self) -> None:
+        """Fio B e COSIP vêm do painel de Configurações, não hardcoded."""
+        from configuracoes.models import Configuracao
+
+        config = Configuracao.atual()
+        config.tusd_fio_b_kwh = Decimal("0")
+        config.save()
+
+        proposta = _proposta(self.modulo)
+        proposta.tarifa_kwh = Decimal("1.00")
+        proposta.autoconsumo_simultaneo_pct = Decimal("0")
+        proposta.save()
+
+        # Sem Fio B, cada kWh compensado vale a tarifa cheia.
+        retorno = proposta.retorno_financeiro
+        self.assertEqual(retorno["fluxo_anual"][0]["tarifa_compensacao"], Decimal("1.000000"))
+
+    def test_payback_e_calculado_sobre_o_valor_total(self) -> None:
+        proposta = _proposta(self.modulo)
+        ItemPropostaSolar.objects.create(
+            proposta=proposta, modulo=self.modulo, quantidade=10,
+            preco_venda_snapshot=Decimal("600"), preco_custo_snapshot=Decimal("500"),
+            data_referencia_preco=date.today(),
+        )
+        proposta.tarifa_kwh = Decimal("1.385750")
+        proposta.save()
+
+        # valor_total = 10*600 + 2000 (instalação) = 8000
+        retorno = proposta.retorno_financeiro
+        self.assertIsNotNone(retorno["payback_anos"])
+        self.assertGreater(retorno["payback_anos"], Decimal("0"))
+        self.assertLess(retorno["payback_anos"], Decimal("25"))
 
 
 class ResumoDeFechamentoNaTelaTests(TestCase):
@@ -956,7 +1284,7 @@ class ResumoFechamentoComCartaoTests(TestCase):
 
         self.assertIn('value="visa_master" selected', corpo)
         self.assertIn('value="1" selected', corpo)
-        self.assertIn("Entrada de R$ 5000,00", corpo)
+        self.assertIn("Entrada de R$ 5.000,00", corpo)
 
     def test_sem_entrada_financia_o_valor_total(self) -> None:
         resposta = self.client.get(
@@ -967,7 +1295,7 @@ class ResumoFechamentoComCartaoTests(TestCase):
         self.assertIn("Parcelamento de 100% no cartão", corpo)
         self.assertNotIn("Entrada de R$", corpo)
         # 1x sobre 12081.00 a 3.49% = 12081/0.9651 = 12517.87 (conferido: 0.9651*12517.87 = 12081.00)
-        self.assertIn("R$ 12517,87", corpo)
+        self.assertIn("R$ 12.517,87", corpo)
 
     def test_bandeira_invalida_cai_para_visa_master(self) -> None:
         resposta = self.client.get(

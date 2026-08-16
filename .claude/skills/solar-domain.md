@@ -1,6 +1,6 @@
 # Domínio Solar — ERP Optimus (Tocantins/BR)
 
-> ⚠️ Esta skill reflete os models **reais** do app `solar`. Última revisão: 2026-08-15.
+> ⚠️ Esta skill reflete os models **reais** do app `solar`. Última revisão: 2026-08-16.
 
 ---
 
@@ -334,50 +334,112 @@ PropostaSolar.objects.select_related("cliente", "modulo").prefetch_related(
 
 ---
 
-## 8. Análise financeira — fórmulas de referência
+## 8. Análise financeira — compensação de GD (Lei 14.300/2022)
 
-### Payback simples
+> **Implementado** em `solar/services.py`. Não reescrever a conta em outro
+> lugar — a lógica é sutil e está verificada contra fatura real.
+
+### ⚠️ O erro que essa seção existe para evitar
+
+`economia = geração × tarifa` **está errado** e superestima a economia. Foi
+exatamente assim que a primeira versão da feature saiu, e o usuário reprovou
+olhando a fatura dele. A geração de um sistema de GD **não** vale tarifa
+cheia, por três motivos independentes:
+
+1. **Fio B** — a parcela da TUSD cobrada sobre a energia *compensada*, que
+   sobe todo ano até 2028 (Lei 14.300, art. 27).
+2. **Custo de disponibilidade** — mínimo de 30/50/100 kWh (mono/bi/tri) que
+   o cliente paga mesmo gerando 100% do consumo (REN ANEEL 414/2010, art. 98).
+3. **COSIP** (contribuição de iluminação pública) — nunca é compensada.
+
+### Escala legal do Fio B
+
+| Ano | % do Fio B cobrado sobre a energia compensada |
+|-----|----|
+| até 2022 | 0% |
+| 2023 | 15% |
+| 2024 | 30% |
+| 2025 | 45% |
+| **2026** | **60%** |
+| 2027 | 75% |
+| 2028 | 90% |
+| 2029+ | ANEEL redefine (art. 28) — o código assume **100%**, hipótese conservadora |
+
+> Quem pediu conexão antes de 07/01/2023 tem direito adquirido até 2045 e
+> não paga Fio B. **Isso não é modelado**: o ERP gera propostas para
+> instalações novas, que caem sempre na regra nova.
+
+### As duas parcelas da geração têm valor diferente
+
+Distinção que o vendedor informa por proposta (`autoconsumo_simultaneo_pct`):
+
+| Parcela | Passa pela rede? | Vale quanto |
+|---|---|---|
+| **Autoconsumo simultâneo** — consumido no mesmo instante em que é gerado | não | **tarifa cheia** (escapa do Fio B) |
+| **Excedente injetado** — vira crédito na distribuidora | sim | **tarifa de compensação** (menor) |
+
+Faixas típicas de autoconsumo simultâneo: residencial 20–30%, comércio com
+carga diurna 50–70%.
+
+### Fórmula verificada
 
 ```python
-def calcular_payback_anos(valor_sistema: float, economia_mensal_kwh: float, tarifa_kwh: float) -> float:
-    """Payback simples em anos."""
-    economia_mes = economia_mensal_kwh * tarifa_kwh
-    if economia_mes <= 0:
-        return float("inf")
-    return (valor_sistema / economia_mes) / 12
+tarifa_compensacao = tarifa_cheia − (tusd_fio_b × percentual_fio_b(ano))
+
+autoconsumo   = min(geração × pct_simultâneo, consumo)
+injetada      = geração − autoconsumo
+consumo_rede  = consumo − autoconsumo
+compensada    = min(injetada, max(0, consumo_rede − custo_disponibilidade))
+
+economia = autoconsumo × tarifa_cheia + compensada × tarifa_compensacao
+conta    = consumo_rede × tarifa_cheia − compensada × tarifa_compensacao + COSIP
 ```
 
-### Economia acumulada em N anos (com reajuste tarifário)
+### Âncora de verificação — fatura real Energisa TO
 
-```python
-def economia_acumulada(
-    economia_mensal_inicial: float,
-    reajuste_anual: float = 0.07,   # ~7%/ano histórico ANEEL
-    anos: int = 25,
-) -> float:
-    """Economia total ao longo da vida útil do sistema."""
-    total = 0.0
-    economia_ano = economia_mensal_inicial * 12
-    for _ in range(anos):
-        total += economia_ano
-        economia_ano *= (1 + reajuste_anual)
-    return total
+Fatura B1 residencial monofásico, ref. agosto/2026 (`RetornoGDContraFaturaRealTests`):
+
+| Item da fatura | Quant. | Tarifa c/ tributos | Valor |
+|---|---|---|---|
+| Consumo em kWh | 547 | 1,385750 | 758,00 |
+| Energia Atv Injetada GDI | 499 | **1,197480** | −597,54 |
+| Contrib de Ilum Pub | — | — | +42,14 |
+| Adic. Bandeira Amarela | — | — | +1,25 |
+| Bônus Itaipu | — | — | −4,46 |
+| **Total** | | | **199,39** |
+
+A tarifa de compensação da fatura cai fora da fórmula:
+
+```
+1,385750 − (0,313783 × 0,60) = 1,197480   ← bate exatamente com a linha GDI
 ```
 
-### TIR estimada (simplificada)
+É daí que sai o padrão `Configuracao.tusd_fio_b_kwh = 0,313783`.
 
-```python
-import numpy_financial as npf  # pip install numpy-financial
+> Reproduzir a fatura **ao centavo não é possível**: a distribuidora arredonda
+> linha a linha e a tarifa impressa já é arredondada. O teste usa tolerância de
+> 2 centavos — forçar igualdade exata seria ajustar o cálculo a artefato de
+> arredondamento, não à regra de negócio.
 
-def calcular_tir(valor_sistema: float, economia_mensal: float, meses: int = 300) -> float:
-    """TIR mensal. Multiplicar por 12 para TIR anual."""
-    fluxos = [-valor_sistema] + [economia_mensal] * meses
-    tir_mensal = npf.irr(fluxos)
-    return (1 + tir_mensal) ** 12 - 1  # TIR anual
-```
+### Parâmetros e onde ficam
 
-> `numpy-financial` não está no `requirements.txt`. Adicionar antes de usar.
-> Alternativa sem dependência: usar método iterativo de bissecção.
+| Parâmetro | Onde | Padrão |
+|---|---|---|
+| `tarifa_kwh` | por proposta | — (sem ela, nada é calculado) |
+| `tipo_ligacao` | por proposta | monofásico |
+| `autoconsumo_simultaneo_pct` | por proposta | 25% |
+| `tusd_fio_b_kwh` | `Configuracao` (regional) | 0,313783 |
+| `cosip_mensal` | `Configuracao` (regional) | 42,14 |
+| reajuste tarifário | constante em `services.py` | 7% a.a. |
+| degradação do módulo | constante em `services.py` | 0,5% a.a. |
+
+### Ainda não implementado
+
+- **TIR** — exigiria `numpy-financial` (fora do `requirements.txt`) ou
+  bissecção manual. Payback simples cobre a necessidade comercial hoje.
+- **Financiamento bancário** — lógica própria (ver §10), fora de escopo por
+  decisão do usuário.
+- **Direito adquirido pré-2023** — ver acima.
 
 ---
 
@@ -572,13 +634,26 @@ Botão "Imprimir / PDF" em `proposta_detail.html` abre em nova aba
 5. Investimento: equipamentos + instalação = total
 6. Validade e condições gerais + espaço para assinatura
 
-**Decisão deliberada — sem payback nem economia em R$:** calcular isso
-exigiria uma tarifa (R$/kWh), e **nem `Cliente` nem `PropostaSolar` têm esse
-campo hoje**. Inventar uma tarifa média pra mostrar economia estimada seria
-apresentar uma promessa financeira sem dado real por trás — risco comercial
-real, não só imprecisão técnica. Se for adicionar isso no futuro, precisa
-vir com um campo de tarifa de verdade (por proposta ou por cliente), não um
-valor chutado no template.
+**Análise de retorno (desde 2026-08-16):** três seções a mais quando a
+proposta tem `tarifa_kwh` preenchida — "Retorno do investimento" (conta
+atual × conta estimada, economia, payback, acumulado), "Economia projetada
+ano a ano" (gráfico) e "Como esta conta foi feita" (memória de cálculo com
+o Fio B explícito). **Sem `tarifa_kwh` as três somem** — a regra segue
+valendo: nunca estimar economia sem dado real do cliente. Ver §8.
+
+**Gráfico de barras** — `solar/services.py::grafico_economia_anual` devolve
+`path` de SVG já montado. Série única em `#00a335` (verde da marca, aprovado
+nos checks de contraste); sem legenda, porque o título da seção já nomeia a
+série; rótulo direto só na primeira e na última barra; payback marcado por
+linha tracejada, não por cor — o verde-claro da marca reprova em contraste
+(1,91:1 sobre branco).
+
+> ⚠️ **Todo número que vira atributo de SVG sai de `services.py` como
+> string.** O projeto roda com `USE_THOUSAND_SEPARATOR=True`, então o
+> template localizaria: `680.0` → `680,0` no `viewBox` e o ano `2026` →
+> `2.026` no rótulo, quebrando o gráfico. Só valores em R$ continuam
+> `Decimal`, porque esses *devem* ser localizados. Travado por
+> `test_svg_nao_sofre_localizacao_de_numero`.
 
 ---
 

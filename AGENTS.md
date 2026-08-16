@@ -208,6 +208,15 @@ vira comentário nenhum: o texto (marcadores `{#`/`#}` inclusos) vaza direto
 pro HTML renderizado. Pra comentário de várias linhas, usar
 `{% comment %}...{% endcomment %}`, que suporta isso de verdade.
 
+**Segunda armadilha, também já mordeu:** o projeto roda com
+`USE_THOUSAND_SEPARATOR = True` (moeda no padrão `R$ 1.234.567,89`), e isso
+localiza **todo** número que o template renderiza — não só dinheiro. Um ano
+vira `2.026`, uma coordenada `680.0` vira `680,0`. Em texto normal isso é o
+comportamento desejado; em **atributo de SVG, `viewBox`, `id`, ou qualquer
+valor que precise ser lido por máquina, quebra**. Quando o número for
+técnico, formate como string em Python antes de mandar pro template (é o
+que `solar/services.py::grafico_economia_anual` faz) ou use `|unlocalize`.
+
 ### Backup
 
 ```powershell

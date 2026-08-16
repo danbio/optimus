@@ -113,6 +113,109 @@
   </table>
 </div>
 
+{% if retorno %}
+<div class="doc-secao">
+  <h2>Retorno do investimento</h2>
+  <div class="doc-grid">
+    <div class="item">
+      <div class="rotulo">Conta hoje</div>
+      <div class="valor">R$ {{ retorno.conta_atual|floatformat:2 }}</div>
+    </div>
+    <div class="item">
+      <div class="rotulo">Conta estimada com o sistema</div>
+      <div class="valor" style="color: var(--verde);">R$ {{ retorno.conta_estimada|floatformat:2 }}</div>
+    </div>
+    <div class="item">
+      <div class="rotulo">Economia no 1º ano</div>
+      <div class="valor">R$ {{ retorno.economia_mensal|floatformat:2 }}<span style="font-size: 12px; font-weight: 400;">/mês</span></div>
+    </div>
+    <div class="item">
+      <div class="rotulo">Investimento pago em</div>
+      <div class="valor">{% if retorno.payback_anos %}{{ retorno.payback_anos|floatformat:1 }} anos{% else %}—{% endif %}</div>
+    </div>
+    <div class="item">
+      <div class="rotulo">Economia acumulada em {{ retorno.anos }} anos</div>
+      <div class="valor" style="color: var(--verde);">R$ {{ retorno.economia_total|floatformat:2 }}</div>
+    </div>
+  </div>
+</div>
+
+{% if grafico %}
+<div class="doc-secao">
+  <h2>Economia projetada ano a ano</h2>
+  {# Coordenadas e anos vêm prontos como string de services.py — o template
+     localizaria os números (680,0 / 2.026) e quebraria o SVG. #}
+  <svg class="doc-grafico" viewBox="{{ grafico.view_box }}"
+       xmlns="http://www.w3.org/2000/svg" role="img"
+       aria-label="Economia anual estimada ao longo de {{ retorno.anos }} anos.">
+    <line x1="0" y1="{{ grafico.base_y }}" x2="{{ grafico.largura }}" y2="{{ grafico.base_y }}"
+          stroke="#d6dfe1" stroke-width="1"/>
+    {% for barra in grafico.barras %}
+      <path d="{{ barra.path }}" fill="#00a335"/>
+      {% if barra.rotulo_valor %}
+        <text x="{{ barra.centro_x }}" y="{{ barra.rotulo_valor_y }}" class="g-valor">R$ {{ barra.economia_ano|floatformat:0 }}</text>
+      {% endif %}
+      {% if barra.rotulo_ano %}
+        <text x="{{ barra.centro_x }}" y="{{ grafico.ano_y }}" class="g-ano">{{ barra.ano }}</text>
+      {% endif %}
+    {% endfor %}
+    {% if grafico.payback_x %}
+      <line x1="{{ grafico.payback_x }}" y1="{{ grafico.marcador_linha_y }}" x2="{{ grafico.payback_x }}" y2="{{ grafico.base_y }}"
+            stroke="#3e5055" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="{{ grafico.payback_rotulo_x }}" y="{{ grafico.marcador_topo_y }}" class="g-marcador">investimento pago</text>
+    {% endif %}
+  </svg>
+  <div style="font-size: 11px; color: var(--texto-corpo); margin-top: 6px;">
+    A economia cresce com o reajuste da tarifa, mas é freada nos primeiros anos pelo aumento
+    escalonado da cobrança do Fio B previsto na Lei 14.300/2022 — já considerado nesta projeção.
+  </div>
+</div>
+{% endif %}
+
+<div class="doc-secao">
+  <h2>Como esta conta foi feita</h2>
+  <table class="tabela" style="font-size: 12px;">
+    <tbody>
+      <tr>
+        <td>Tarifa de energia informada pelo cliente</td>
+        <td style="text-align: right;">R$ {{ proposta.tarifa_kwh|floatformat:6 }}/kWh</td>
+      </tr>
+      <tr>
+        <td>Consumo médio mensal</td>
+        <td style="text-align: right;">{{ proposta.consumo_medio_kwh|floatformat:0 }} kWh</td>
+      </tr>
+      <tr>
+        <td>Geração estimada do sistema</td>
+        <td style="text-align: right;">{{ proposta.geracao_mensal_kwh }} kWh/mês</td>
+      </tr>
+      <tr>
+        <td>Consumido no instante da geração (não passa pela rede)</td>
+        <td style="text-align: right;">{{ retorno.autoconsumo_mensal_kwh|floatformat:0 }} kWh/mês</td>
+      </tr>
+      <tr>
+        <td>Injetado na rede e compensado</td>
+        <td style="text-align: right;">{{ retorno.compensada_mensal_kwh|floatformat:0 }} kWh/mês</td>
+      </tr>
+      <tr>
+        <td>Cobrança do Fio B sobre a energia compensada ({{ proposta.criado_em|date:"Y" }})</td>
+        <td style="text-align: right;">{{ retorno.percentual_fio_b_atual|floatformat:0 }}%</td>
+      </tr>
+      <tr>
+        <td>Mínimo faturado pela distribuidora ({{ proposta.get_tipo_ligacao_display }})</td>
+        <td style="text-align: right;">{{ retorno.custo_disponibilidade_kwh }} kWh/mês</td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="font-size: 11px; color: var(--texto-corpo); margin-top: 8px;">
+    Projeção conforme a Lei 14.300/2022: a energia injetada na rede é compensada já descontada da
+    parcela do Fio B, que sobe gradualmente até 2028. O custo de disponibilidade e a contribuição de
+    iluminação pública não são compensados pela geração e seguem na conta. Considera reajuste
+    tarifário de 7% ao ano (média histórica ANEEL), perda de eficiência dos módulos de 0,5% ao ano e
+    cenário de bandeira verde. Valores estimados, sujeitos à variação real da tarifa e do consumo.
+  </div>
+</div>
+{% endif %}
+
 {% if proposta.observacoes %}
 <div class="doc-secao">
   <h2>Condições e observações</h2>

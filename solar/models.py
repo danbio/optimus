@@ -407,6 +407,10 @@ class PropostaSolar(BaseModel):
         (STATUS_CANCELADA, "Cancelada"),
     ]
 
+    LIGACAO_MONOFASICO = "monofasico"
+    LIGACAO_BIFASICO = "bifasico"
+    LIGACAO_TRIFASICO = "trifasico"
+
     numero = models.CharField(max_length=20, unique=True, editable=False, verbose_name="número")
     cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, verbose_name="cliente")
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_RASCUNHO, verbose_name="status")
@@ -423,6 +427,40 @@ class PropostaSolar(BaseModel):
 
     # Financeiro
     valor_instalacao = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="valor da instalação (R$)")
+    tarifa_kwh = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        verbose_name="tarifa de energia do cliente (R$/kWh)",
+        help_text=(
+            "Com tributos, como aparece na fatura na linha “Consumo em kWh”. "
+            "Opcional — sem ela o PDF não mostra a análise de retorno."
+        ),
+    )
+    autoconsumo_simultaneo_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("25.00"),
+        verbose_name="autoconsumo simultâneo (%)",
+        help_text=(
+            "Quanto da geração o cliente consome no mesmo instante em que é "
+            "produzida (não passa pela rede, logo não sofre Fio B e economiza "
+            "a tarifa cheia). Residencial costuma ficar em 20–30%; comércio "
+            "com carga diurna chega a 50–70%."
+        ),
+    )
+    tipo_ligacao = models.CharField(
+        max_length=12,
+        choices=[
+            (LIGACAO_MONOFASICO, "Monofásico (mínimo 30 kWh)"),
+            (LIGACAO_BIFASICO, "Bifásico (mínimo 50 kWh)"),
+            (LIGACAO_TRIFASICO, "Trifásico (mínimo 100 kWh)"),
+        ],
+        default=LIGACAO_MONOFASICO,
+        verbose_name="tipo de ligação",
+        help_text="Define o custo de disponibilidade — o mínimo que o cliente paga mesmo gerando toda a energia.",
+    )
 
     # Proposta
     validade = models.DateField(default=_validade_padrao, verbose_name="validade da proposta")
@@ -475,6 +513,30 @@ class PropostaSolar(BaseModel):
         if not self.potencia_real_kwp:
             return 0
         return round(float(self.potencia_real_kwp) * float(self.hsp) * 30 * float(self.fator_eficiencia))
+
+    @property
+    def retorno_financeiro(self):
+        """Projeção de retorno pelas regras reais de GD da Lei 14.300/2022 —
+        Fio B gradual sobre a energia compensada, custo de disponibilidade e
+        COSIP não compensados. Só calcula quando o vendedor informa a tarifa
+        do cliente (`tarifa_kwh`); sem isso retorna None, não inventa número.
+        Ver `solar/services.py` e a skill solar-domain §8."""
+        from configuracoes.models import Configuracao
+
+        from .services import projetar_retorno
+
+        config = Configuracao.atual()
+        return projetar_retorno(
+            valor_investimento=self.valor_total,
+            geracao_mensal_kwh=Decimal(str(self.geracao_mensal_kwh or 0)),
+            consumo_mensal_kwh=self.consumo_medio_kwh,
+            tarifa_kwh=self.tarifa_kwh,
+            tusd_fio_b_kwh=config.tusd_fio_b_kwh,
+            tipo_ligacao=self.tipo_ligacao,
+            cosip_mensal=config.cosip_mensal,
+            autoconsumo_simultaneo_pct=self.autoconsumo_simultaneo_pct,
+            ano_base=(self.criado_em.year if self.criado_em else date.today().year),
+        )
 
     @property
     def inversor_principal(self):

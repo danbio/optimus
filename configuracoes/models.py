@@ -55,6 +55,32 @@ class Configuracao(BaseModel):
         ),
     )
 
+    tusd_fio_b_kwh = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        default=Decimal("0.313783"),
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="TUSD Fio B (R$/kWh, com tributos)",
+        help_text=(
+            "Parcela da tarifa que continua sendo cobrada sobre a energia "
+            "compensada, conforme a Lei 14.300/2022. O padrão foi extraído de "
+            "uma fatura real da Energisa TO (B1 residencial): a diferença "
+            "entre a tarifa de consumo e a de energia injetada, dividida pelo "
+            "percentual do Fio B vigente no ano da fatura."
+        ),
+    )
+    cosip_mensal = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal("42.14"),
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="contribuição de iluminação pública (R$/mês)",
+        help_text=(
+            "Cobrança fixa da fatura que a geração solar nunca compensa. "
+            "Entra na estimativa da conta que sobra depois do sistema."
+        ),
+    )
+
     class Meta:
         verbose_name = "configuração"
         verbose_name_plural = "configurações"
