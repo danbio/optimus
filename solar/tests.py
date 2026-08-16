@@ -238,6 +238,132 @@ class ValorEquipamentosPropertyTest(TestCase):
         self.assertEqual(proposta.valor_total, Decimal("3000.00"))
 
 
+class ValorEquipamentosManualTests(TestCase):
+    """Override manual do custo de equipamentos.
+
+    Existe porque a Optimus não precifica o equipamento — o cliente paga
+    direto ao fornecedor (ver skill financeiro-domain) — e o catálogo
+    interno nem sempre tem preço vigente pra cada item (estrutura, cabos...
+    ver ROADMAP "Catálogo praticamente vazio"). O vendedor precisa poder
+    digitar o valor real cotado mesmo sem isso."""
+
+    def setUp(self) -> None:
+        self.modulo = _modulo()
+
+    def _proposta_com_item(self, preco_venda=Decimal("600"), quantidade=10):
+        proposta = _proposta(self.modulo)
+        proposta.itens.all().delete()
+        ItemPropostaSolar.objects.create(
+            proposta=proposta, modulo=self.modulo, quantidade=quantidade,
+            preco_venda_snapshot=preco_venda, preco_custo_snapshot=Decimal("500"),
+            data_referencia_preco=date.today(),
+        )
+        return proposta
+
+    def test_sem_override_usa_a_soma_calculada(self) -> None:
+        proposta = self._proposta_com_item()  # 10 × 600 = 6000
+
+        self.assertIsNone(proposta.valor_equipamentos_manual)
+        self.assertEqual(proposta.valor_equipamentos, Decimal("6000.00"))
+
+    def test_override_substitui_a_soma_calculada(self) -> None:
+        proposta = self._proposta_com_item()  # soma calculada = 6000
+        proposta.valor_equipamentos_manual = Decimal("7500.00")
+        proposta.save()
+
+        self.assertEqual(proposta.valor_equipamentos, Decimal("7500.00"))
+
+    def test_soma_calculada_continua_disponivel_como_sugestao(self) -> None:
+        """A soma dos itens não desaparece quando há override — fica
+        acessível à parte, pra tela mostrar como sugestão."""
+        proposta = self._proposta_com_item()  # 10 × 600 = 6000
+        proposta.valor_equipamentos_manual = Decimal("7500.00")
+        proposta.save()
+
+        self.assertEqual(proposta.valor_equipamentos_calculado, Decimal("6000.00"))
+        self.assertEqual(proposta.valor_equipamentos, Decimal("7500.00"))
+
+    def test_override_funciona_mesmo_sem_nenhum_item(self) -> None:
+        """O caso real: catálogo de estrutura/material ainda vazio, mas o
+        vendedor já sabe o valor total cotado pelo fornecedor."""
+        proposta = _proposta(self.modulo)
+        proposta.itens.all().delete()
+        proposta.valor_equipamentos_manual = Decimal("12000.00")
+        proposta.save()
+
+        self.assertEqual(proposta.valor_equipamentos_calculado, Decimal("0.00"))
+        self.assertEqual(proposta.valor_equipamentos, Decimal("12000.00"))
+
+    def test_override_entra_no_valor_total(self) -> None:
+        proposta = self._proposta_com_item()  # valor_instalacao=2000 (ver _proposta)
+        proposta.valor_equipamentos_manual = Decimal("9000.00")
+        proposta.save()
+
+        self.assertEqual(proposta.valor_total, Decimal("11000.00"))
+
+    def test_form_grava_o_override_digitado(self) -> None:
+        from .forms import PropostaSolarForm
+
+        cliente = _cliente()
+        dados = {
+            "cliente": cliente.pk, "consumo_medio_kwh": "500", "modulo": self.modulo.pk,
+            "hsp": "5.5", "fator_eficiencia": "0.75", "valor_instalacao": "2000",
+            "valor_equipamentos_manual": "15000.00",
+            "tipo_ligacao": PropostaSolar.LIGACAO_MONOFASICO, "autoconsumo_simultaneo_pct": "25",
+            "validade": (date.today() + timedelta(days=30)).isoformat(), "observacoes": "",
+        }
+        form = PropostaSolarForm(data=dados)
+        self.assertTrue(form.is_valid(), form.errors)
+        proposta = form.save(commit=False)
+
+        self.assertEqual(proposta.valor_equipamentos_manual, Decimal("15000.00"))
+
+    def test_form_sem_valor_digitado_fica_none(self) -> None:
+        """Campo opcional: não digitar nada não trava o form nem zera o
+        valor à força — o cálculo automático continua valendo."""
+        from .forms import PropostaSolarForm
+
+        cliente = _cliente()
+        dados = {
+            "cliente": cliente.pk, "consumo_medio_kwh": "500", "modulo": self.modulo.pk,
+            "hsp": "5.5", "fator_eficiencia": "0.75", "valor_instalacao": "2000",
+            "tipo_ligacao": PropostaSolar.LIGACAO_MONOFASICO, "autoconsumo_simultaneo_pct": "25",
+            "validade": (date.today() + timedelta(days=30)).isoformat(), "observacoes": "",
+        }
+        form = PropostaSolarForm(data=dados)
+        self.assertTrue(form.is_valid(), form.errors)
+        proposta = form.save(commit=False)
+
+        self.assertIsNone(proposta.valor_equipamentos_manual)
+
+
+class CalcularTotalEquipamentosEndpointTests(TestCase):
+    """Endpoint HTMX que alimenta a sugestão ao lado do campo editável."""
+
+    def setUp(self) -> None:
+        self.modulo = _modulo()
+        _preco(self.modulo, venda=Decimal("600"), custo=Decimal("500"))
+        user = User.objects.create_user(username="vend_calc", password="senha-de-teste")
+        user.groups.add(Group.objects.get_or_create(name=GRUPO_ADMIN)[0])
+        self.client.force_login(user)
+
+    def test_devolve_json_com_formatado_e_raw(self) -> None:
+        resposta = self.client.get(
+            reverse("solar:calcular_total"),
+            {"itens-TOTAL_FORMS": "1", "itens-0-modulo": self.modulo.pk, "itens-0-quantidade": "10"},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        dados = resposta.json()
+        self.assertEqual(dados["raw"], "6000.00")
+        self.assertIn("6.000,00", dados["formatado"])
+
+    def test_sem_itens_devolve_zero(self) -> None:
+        resposta = self.client.get(reverse("solar:calcular_total"), {"itens-TOTAL_FORMS": "0"})
+
+        self.assertEqual(resposta.json()["raw"], "0.00")
+
+
 # ---------------------------------------------------------------------------
 # Testes de criação automática de itens ao salvar nova proposta
 # ---------------------------------------------------------------------------
@@ -531,6 +657,39 @@ class DimensionamentoConectadoAosItensTests(TestCase):
         self.assertEqual(proposta.modulo_id, self.modulo.pk)
         self.assertEqual(proposta.quantidade_modulos, 13)
         self.assertGreater(proposta.potencia_kwp, 0)
+
+    def test_criar_proposta_com_custo_de_equipamentos_digitado(self) -> None:
+        """Fim a fim pelo caminho real: vendedor digita o valor cotado pelo
+        fornecedor em vez de depender do catálogo interno ter preço vigente
+        pra cada item (estrutura, cabos... ver ROADMAP)."""
+        cliente = _cliente()
+        dados = {
+            "cliente": cliente.pk,
+            "consumo_medio_kwh": "500",
+            "modulo": self.modulo.pk,
+            "hsp": "5.5",
+            "fator_eficiencia": "0.75",
+            "valor_equipamentos_manual": "18500.00",
+            "valor_instalacao": "3000",
+            "tipo_ligacao": PropostaSolar.LIGACAO_MONOFASICO,
+            "autoconsumo_simultaneo_pct": "25",
+            "validade": (date.today() + timedelta(days=30)).isoformat(),
+            "observacoes": "",
+            "itens-TOTAL_FORMS": "1",
+            "itens-INITIAL_FORMS": "0",
+            "itens-MIN_NUM_FORMS": "1",
+            "itens-MAX_NUM_FORMS": "1000",
+            "itens-0-modulo": self.modulo.pk,
+            "itens-0-quantidade": "13",
+        }
+
+        resposta = self.client.post(reverse("solar:nova"), dados)
+
+        self.assertEqual(resposta.status_code, 302, resposta.context["formset"].errors if resposta.status_code == 200 else "")
+        proposta = PropostaSolar.objects.latest("criado_em")
+        self.assertEqual(proposta.valor_equipamentos_manual, Decimal("18500.00"))
+        self.assertEqual(proposta.valor_equipamentos, Decimal("18500.00"))
+        self.assertEqual(proposta.valor_total, Decimal("21500.00"))
 
 
 # ---------------------------------------------------------------------------

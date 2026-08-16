@@ -24,11 +24,15 @@ Se você abrir este arquivo sem saber por onde continuar, é por aqui:
    detalhe lista o que falta antes de virar PDF.
 3. ~~Financeiro contava repasse ao fornecedor como receita~~ ✅ feito em
    2026-08-16 — ver seção 1.
-4. **Popular o catálogo** — 👉 **é aqui que estamos.** Trabalho de dado, seu:
-   cadastrar estruturas de fixação, cabos, conectores, DPS e disjuntores em
-   `/solar/estruturas/` e `/solar/materiais/`, com preço em
-   `/solar/precos/`. Enquanto isso não existe, toda proposta sai
-   subestimada — e o aviso do item 2 vai continuar aparecendo.
+4. ~~Custo de equipamentos travado ao catálogo~~ ✅ feito em 2026-08-16 —
+   `valor_equipamentos_manual` deixa o vendedor digitar o valor cotado pelo
+   fornecedor sem depender de preço vigente cadastrado pra cada item.
+5. **Popular o catálogo** — 👉 **é aqui que estamos.** Já não trava mais o
+   *valor* da proposta (item 4), mas a **tabela de equipamentos do PDF**
+   ainda mostra só o que está cadastrado — cadastrar estrutura de fixação,
+   cabos, conectores, DPS e disjuntores em `/solar/estruturas/` e
+   `/solar/materiais/`, com preço em `/solar/precos/`, deixa o PDF completo
+   de verdade (e o aviso do item 2 some sozinho quando isso acontecer).
 
 ---
 
@@ -39,8 +43,8 @@ O que faz a proposta sair com número errado. **Maior prioridade.**
 | Item | Situação |
 |---|---|
 | ~~**Financeiro somava repasse ao fornecedor como receita da Optimus**~~ | ✅ Corrigido (2026-08-16). Modelo de negócio real: o cliente compra o equipamento **direto do fornecedor** (Intelbras, Belenus), sem margem da Optimus — é assim que a venda de gerador fica isenta do ICMS que incidiria sobre estoque próprio. A Optimus só fatura instalação e manutenção. O sistema estava lançando o valor do equipamento como se fosse receita, inflando o dashboard de faturamento pelo preço do gerador inteiro. `LancamentoFinanceiro.tipo` agora distingue `receita` de `repasse` — o repasse continua rastreado (lembrete de cobrar o cliente, tamanho real do negócio), mas fica fora dos KPIs de faturamento. Ver skill financeiro-domain |
-| **Catálogo praticamente vazio** | 1 módulo, 1 inversor, 1 estrutura, 2 materiais elétricos. Todos têm preço vigente — o problema **não é preço faltando, é item inexistente**. Sem estrutura de fixação, cabos e conectores cadastrados, nenhuma proposta consegue ficar completa |
-| **Composição de preço incompleta** | Consequência do item acima: o valor total sai **subestimado**, e como o payback divide investimento pela economia, ele sai **otimista demais** (SOL-202608-0006 fechou em 1 ano e 1 mês). O cálculo de retorno está certo; o que entra nele é que não |
+| **Catálogo ainda incompleto** | 4 módulos, 1 inversor, 1 estrutura, 2 materiais elétricos. Sem estrutura de fixação, cabos e conectores suficientes cadastrados, a tabela de equipamentos do PDF fica incompleta — mas o **valor** da proposta já não depende mais disso, ver linha abaixo |
+| ~~**Composição de preço incompleta**~~ | ✅ Contornado (2026-08-16). `valor_equipamentos_manual` deixa o vendedor digitar o valor total cotado pelo fornecedor direto, sem depender de cada item ter preço vigente no catálogo. Não substitui popular o catálogo (a tabela de itens no PDF ainda precisa dos itens certos), mas destrava a proposta enquanto isso não acontece |
 | ~~`Inversor.potencia_kw = 6000.00`~~ | ✅ Corrigido (2026-08-16). O model agora valida a faixa (0,1–500 kW) e rejeita potência digitada em W; módulo idem (50–2000 Wp). A sugestão de inversor voltou a funcionar (81,3% para 4,88 kWp) |
 | ~~Nada avisa que a proposta está incompleta~~ | ✅ Feito (2026-08-16). `PropostaSolar.pendencias` + card na tela de detalhe: aponta falta de módulo/inversor/estrutura/material, mão de obra zerada, item com preço zerado e ausência de tarifa. Não bloqueia o envio — avisa |
 | Tabela de preços pode envelhecer em silêncio | `PrecoEquipamentoSolar` tem vigência, mas nada alerta quando o preço vence |

@@ -26,6 +26,7 @@ class PropostaSolarForm(forms.ModelForm):
             "municipio",
             "hsp",
             "fator_eficiencia",
+            "valor_equipamentos_manual",
             "valor_instalacao",
             "distribuidora",
             "tarifa_kwh",
@@ -65,6 +66,8 @@ class PropostaSolarForm(forms.ModelForm):
         self.fields["hsp"].widget.attrs.update({"placeholder": "5.50", "inputmode": "decimal", "step": "0.01"})
         self.fields["fator_eficiencia"].widget.attrs.update({"placeholder": "0.75", "inputmode": "decimal", "step": "0.01"})
 
+        self.fields["valor_equipamentos_manual"].required = False
+        self.fields["valor_equipamentos_manual"].widget.attrs.update({"placeholder": "0,00", "inputmode": "decimal", "step": "0.01"})
         self.fields["valor_instalacao"].widget.attrs.update({"placeholder": "0,00", "inputmode": "decimal", "step": "0.01"})
         self.fields["distribuidora"].required = False
         self.fields["distribuidora"].queryset = Distribuidora.objects.filter(ativo=True)

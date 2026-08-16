@@ -134,10 +134,11 @@
     <div class="card-body">
       <div class="d-flex gap-2" style="flex-wrap: wrap;">
         <div class="form-group" style="flex: 1; min-width: 180px;">
-          <label>Custo Base de Equipamentos (R$)</label>
-          <div class="form-control" style="background: var(--fundo-alt); color: var(--texto-corpo);"
-               id="custo-equipamentos">
-            {% if object %}{{ object.valor_equipamentos|floatformat:2 }}{% else %}—{% endif %}
+          <label for="id_valor_equipamentos_manual">Custo de Equipamentos (R$)</label>
+          {{ form.valor_equipamentos_manual }}
+          {% if form.valor_equipamentos_manual.errors %}<div class="form-error">{% for e in form.valor_equipamentos_manual.errors %}{{ e }}{% endfor %}</div>{% endif %}
+          <div class="form-ajuda" id="custo-equipamentos-sugestao" style="margin-top: 4px;">
+            {# Preenchido via JS a partir dos itens da tabela — ver recalcularCustoEquipamentos() #}
           </div>
         </div>
         <div class="form-group" style="flex: 1; min-width: 180px;">
@@ -302,6 +303,13 @@
     }
   });
 
+  // O campo de custo de equipamentos é editável (o vendedor pode digitar o
+  // valor cotado pelo fornecedor direto, sem depender do catálogo interno
+  // ter preço vigente pra cada item). Por isso a soma calculada dos itens
+  // NUNCA sobrescreve o campo sozinha — só aparece como sugestão clicável,
+  // pra não apagar o que o vendedor já digitou toda vez que um item muda.
+  let ultimoCustoCalculado = null;
+
   function recalcularCustoEquipamentos() {
     const container = document.getElementById('itens-container');
     const management = document.getElementById('formset-management');
@@ -316,8 +324,23 @@
     fetch('{% url "solar:calcular_total" %}?' + params.toString(), {
       headers: {'X-Requested-With': 'XMLHttpRequest'}
     })
-    .then(r => r.text())
-    .then(txt => { document.getElementById('custo-equipamentos').textContent = txt; });
+    .then(r => r.json())
+    .then(dados => {
+      ultimoCustoCalculado = dados.raw;
+      const sugestao = document.getElementById('custo-equipamentos-sugestao');
+      if (parseFloat(dados.raw) > 0) {
+        sugestao.innerHTML = 'Soma dos itens: ' + dados.formatado +
+          ' — <a href="#" onclick="usarCustoCalculado(); return false;">usar este valor</a>';
+      } else {
+        sugestao.textContent = '';
+      }
+    });
+  }
+
+  function usarCustoCalculado() {
+    if (ultimoCustoCalculado !== null) {
+      document.getElementById('id_valor_equipamentos_manual').value = ultimoCustoCalculado;
+    }
   }
 
   // Dispara a lógica nos formsets já existentes (Load & Edição)

@@ -609,6 +609,20 @@ class PropostaSolar(BaseModel):
 
     # Financeiro
     valor_instalacao = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="valor da instalação (R$)")
+    valor_equipamentos_manual = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="custo de equipamentos (R$, editável)",
+        help_text=(
+            "Sobrepõe a soma calculada dos itens. Útil quando o vendedor já "
+            "sabe o valor total cotado pelo fornecedor (Intelbras, Belenus) "
+            "sem precisar que cada item do catálogo tenha preço vigente "
+            "cadastrado — o cliente paga esse valor direto ao fornecedor, "
+            "sem margem da Optimus (ver skill financeiro-domain)."
+        ),
+    )
     tarifa_kwh = models.DecimalField(
         max_digits=10,
         decimal_places=6,
@@ -658,7 +672,25 @@ class PropostaSolar(BaseModel):
 
     @property
     def valor_equipamentos(self):
-        """Soma de preco_venda_snapshot × quantidade de todos os itens da proposta."""
+        """Custo de equipamentos usado na proposta: valor digitado pelo
+        vendedor (`valor_equipamentos_manual`) quando preenchido, senão a
+        soma de `preco_venda_snapshot × quantidade` dos itens.
+
+        O override existe porque a Optimus não precifica o equipamento — o
+        cliente paga direto ao fornecedor (ver skill financeiro-domain) — e
+        o catálogo interno (`PrecoEquipamentoSolar`) nem sempre tem preço
+        vigente pra cada item (estrutura, cabos...). Sem isso, uma proposta
+        sem preço cadastrado pra estrutura ficaria com equipamento de
+        R$ 0,00 mesmo que o vendedor já saiba o valor real cotado.
+        """
+        if self.valor_equipamentos_manual is not None:
+            return self.valor_equipamentos_manual
+        return self.valor_equipamentos_calculado
+
+    @property
+    def valor_equipamentos_calculado(self):
+        """Soma de preco_venda_snapshot × quantidade dos itens — sem o
+        override manual. Usada como sugestão na tela de edição."""
         from django.db.models import DecimalField as Dec
         from django.db.models import F, Sum
 

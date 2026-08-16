@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Q
-from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views.decorators.http import require_POST
@@ -442,7 +442,12 @@ def adicionar_item_solar(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def calcular_total_equipamentos(request: HttpRequest) -> HttpResponse:
-    """Endpoint HTMX — calcula total de equipamentos a partir do formset."""
+    """Endpoint HTMX — calcula total de equipamentos a partir do formset.
+
+    Devolve JSON com o valor formatado (exibição) e bruto (pra JS preencher
+    o campo editável de custo de equipamentos sem parsear string
+    formatada). Ver `proposta_form.html::usarCustoCalculado`.
+    """
     hoje = date.today()
     total = Decimal("0")
 
@@ -479,7 +484,8 @@ def calcular_total_equipamentos(request: HttpRequest) -> HttpResponse:
             if preco:
                 total += preco.preco_venda * quantidade
 
-    return HttpResponse(f"R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+    formatado = f"R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return JsonResponse({"formatado": formatado, "raw": str(total.quantize(Decimal("0.01")))})
 
 
 # ── Transições de status ─────────────────────────────────────────────────────

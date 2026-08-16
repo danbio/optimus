@@ -219,7 +219,8 @@ validade           # DateField — default: hoje + 30 dias
 observacoes        # TextField (blank)
 
 # Properties:
-@property valor_equipamentos   # Sum(preco_venda_snapshot * quantidade) de todos os itens
+@property valor_equipamentos   # valor_equipamentos_manual se preenchido, senão valor_equipamentos_calculado
+@property valor_equipamentos_calculado  # Sum(preco_venda_snapshot * quantidade) — sempre disponível, mesmo com override
 @property valor_total          # valor_equipamentos + valor_instalacao
 @property potencia_real_kwp    # quantidade_modulos * modulo.potencia_wp / 1000
 @property area_total_m2        # quantidade_modulos * modulo.area_m2
@@ -272,9 +273,34 @@ GET /solar/adicionar-item/?index=N
     "Usar este inversor" no preview do dimensionamento
 
 GET /solar/calcular-total/?itens-TOTAL_FORMS=N&itens-0-modulo=pk&itens-0-quantidade=2...
-  → Retorna: texto puro "R$ 12.345,67"
-  → Recalcula total dos equipamentos ao vivo sem salvar
+  → Retorna: JSON {"formatado": "R$ 12.345,67", "raw": "12345.67"}
+  → Soma os itens ao vivo sem salvar — vira SUGESTÃO, não preenche
+    o campo sozinho (ver §4.1 — o campo é editável, sobrescrever
+    apagaria o que o vendedor já digitou)
 ```
+
+### 4.1 Custo de equipamentos é editável (não é mais só exibição)
+
+Até 2026-08-16 "Custo Base de Equipamentos" era um `<div>` somando os
+snapshots de preço dos itens — sem campo no model, calculado sempre. Virou
+editável (`PropostaSolar.valor_equipamentos_manual`, nullable) porque a
+Optimus não precifica o equipamento (venda direta ao fornecedor, ver skill
+financeiro-domain) e o catálogo interno (`PrecoEquipamentoSolar`) nem
+sempre tem preço vigente pra cada item — ver ROADMAP "Catálogo praticamente
+vazio". Sem o override, uma proposta sem preço cadastrado de estrutura
+ficaria travada em R$ 0,00 de equipamento mesmo o vendedor já sabendo o
+valor real cotado pelo fornecedor.
+
+```python
+proposta.valor_equipamentos            # manual se preenchido, senão a soma calculada
+proposta.valor_equipamentos_calculado  # sempre a soma dos itens — nunca desaparece
+proposta.valor_equipamentos_manual     # None = "sem override, use o calculado"
+```
+
+O JS (`recalcularCustoEquipamentos()` em `proposta_form.html`) nunca escreve
+direto no campo — só atualiza um link "usar este valor" ao lado
+(`usarCustoCalculado()`). Preencher o campo automaticamente apagaria a
+digitação do vendedor toda vez que um item do formset mudasse.
 
 **Prefixo do formset:** `itens` (ex.: `itens-0-modulo`, `itens-1-inversor`).
 
