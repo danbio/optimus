@@ -5,12 +5,15 @@ duplicado no fluxo solar. Cobrem o comportamento **correto**, não o que o
 código fazia antes.
 """
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
+from django.contrib.auth.models import Group, User
 from django.test import TestCase
+from django.urls import reverse
 
 from clientes.models import Cliente
+from core.permissoes import GRUPO_ADMIN
 from ordens_servico.models import OrdemServico, Tecnico
 from solar.models import ItemPropostaSolar, ModuloFotovoltaico, PropostaSolar
 
@@ -112,6 +115,113 @@ class FaturamentoSolarSemDuplicidadeTests(TestCase):
         criar_lancamento_de_proposta_solar(self.proposta)
 
         self.assertEqual(LancamentoFinanceiro.objects.filter(proposta_solar=self.proposta).count(), 1)
+
+
+class RepasseNaoEReceitaTests(TestCase):
+    """Modelo de negócio real (confirmado 2026-08-16): o cliente compra o
+    equipamento direto do fornecedor (Intelbras, Belenus), sem margem da
+    Optimus — é assim que a venda de gerador fica isenta de ICMS. A Optimus
+    nunca fatura nem recebe esse valor; a receita dela é só instalação e
+    manutenção. O lançamento de equipamento existe pra rastrear se o
+    cliente pagou o fornecedor, não porque é dinheiro da empresa."""
+
+    def setUp(self) -> None:
+        self.cliente = _cliente()
+        self.modulo = _modulo()
+        self.proposta = PropostaSolar.objects.create(
+            cliente=self.cliente, consumo_medio_kwh=350, hsp=Decimal("5.50"),
+            fator_eficiencia=Decimal("0.75"), potencia_kwp=Decimal("4.000"),
+            quantidade_modulos=10, modulo=self.modulo,
+            valor_instalacao=Decimal("2000.00"),
+            status=PropostaSolar.STATUS_ENVIADA,
+        )
+        ItemPropostaSolar.objects.create(
+            proposta=self.proposta, modulo=self.modulo, quantidade=10,
+            preco_venda_snapshot=Decimal("800.00"), preco_custo_snapshot=Decimal("600.00"),
+            data_referencia_preco=date.today(),
+        )
+
+    def test_lancamento_de_equipamento_nasce_como_repasse(self) -> None:
+        criar_lancamento_de_proposta_solar(self.proposta)
+
+        lanc = LancamentoFinanceiro.objects.get(proposta_solar=self.proposta)
+        self.assertEqual(lanc.tipo, LancamentoFinanceiro.TIPO_REPASSE)
+
+    def test_lancamento_manual_nasce_como_receita_por_padrao(self) -> None:
+        """Um lançamento sem tipo explícito é receita — é o caso comum
+        (venda de balcão, serviço, manual)."""
+        lanc = LancamentoFinanceiro.objects.create(
+            cliente=self.cliente, descricao="Venda avulsa",
+            valor_bruto=Decimal("500"), data_vencimento=date.today(),
+        )
+
+        self.assertEqual(lanc.tipo, LancamentoFinanceiro.TIPO_RECEITA)
+
+
+class DashboardExcluiRepasseDoFaturamentoTests(TestCase):
+    """O dashboard é a tela que o dono do negócio olha pra saber quanto a
+    empresa faturou. Repasse ao fornecedor não pode inflar esse número."""
+
+    def setUp(self) -> None:
+        self.cliente = _cliente()
+        self.user = User.objects.create_user(username="fin_dash", password="senha-de-teste")
+        self.user.groups.add(Group.objects.get_or_create(name=GRUPO_ADMIN)[0])
+        self.client.force_login(self.user)
+
+    def _lancamento(self, tipo, valor):
+        return LancamentoFinanceiro.objects.create(
+            cliente=self.cliente, descricao="Teste", tipo=tipo,
+            valor_bruto=valor, data_vencimento=date.today(),
+        )
+
+    def test_repasse_nao_soma_no_total_liquido(self) -> None:
+        self._lancamento(LancamentoFinanceiro.TIPO_RECEITA, Decimal("3000"))
+        self._lancamento(LancamentoFinanceiro.TIPO_REPASSE, Decimal("12000"))
+
+        resposta = self.client.get(reverse("financeiro:dashboard"), {"periodo": "ano"})
+
+        self.assertEqual(resposta.context["total_liquido"], Decimal("3000"))
+
+    def test_repasse_aparece_separado_do_faturamento(self) -> None:
+        self._lancamento(LancamentoFinanceiro.TIPO_RECEITA, Decimal("3000"))
+        self._lancamento(LancamentoFinanceiro.TIPO_REPASSE, Decimal("12000"))
+
+        resposta = self.client.get(reverse("financeiro:dashboard"), {"periodo": "ano"})
+
+        self.assertEqual(resposta.context["total_repasse"], Decimal("12000"))
+        self.assertIn("R$ 12.000,00", resposta.content.decode("utf-8"))
+
+    def test_faturamento_da_proposta_solar_completa_nao_conta_o_equipamento(self) -> None:
+        """Fim a fim: proposta de R$ 10.000 (8.000 equipamento + 2.000
+        instalação) só pode contribuir R$ 2.000 pro faturamento."""
+        modulo = _modulo()
+        proposta = PropostaSolar.objects.create(
+            cliente=self.cliente, consumo_medio_kwh=350, hsp=Decimal("5.50"),
+            fator_eficiencia=Decimal("0.75"), potencia_kwp=Decimal("4.000"),
+            quantidade_modulos=10, modulo=modulo, valor_instalacao=Decimal("2000.00"),
+            status=PropostaSolar.STATUS_ENVIADA,
+        )
+        ItemPropostaSolar.objects.create(
+            proposta=proposta, modulo=modulo, quantidade=10,
+            preco_venda_snapshot=Decimal("800.00"), preco_custo_snapshot=Decimal("600.00"),
+            data_referencia_preco=date.today(),
+        )
+        criar_lancamento_de_proposta_solar(proposta)
+        tecnico = Tecnico.objects.create(nome="Técnico Teste")
+        os_obj = OrdemServico.objects.create(
+            cliente=self.cliente, proposta_solar=proposta, tecnico=tecnico, descricao="Instalação",
+        )
+        criar_lancamento_de_ordem_servico(os_obj)
+
+        # O lançamento de equipamento vence em 30 dias (padrão da proposta),
+        # o da OS vence hoje — período precisa cobrir os dois.
+        resposta = self.client.get(
+            reverse("financeiro:dashboard"),
+            {"periodo": "personalizado", "data_de": "2020-01-01", "data_ate": (date.today() + timedelta(days=31)).isoformat()},
+        )
+
+        self.assertEqual(resposta.context["total_liquido"], Decimal("2000.00"))
+        self.assertEqual(resposta.context["total_repasse"], Decimal("8000.00"))
 
 
 class FaturamentoDeOSAvulsaTests(TestCase):

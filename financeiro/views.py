@@ -241,10 +241,17 @@ def dashboard(request):
             data_de = primeiro_mes
             data_ate = today
 
-    qs = LancamentoFinanceiro.objects.filter(
+    qs_todos = LancamentoFinanceiro.objects.filter(
         data_vencimento__gte=data_de,
         data_vencimento__lte=data_ate,
     ).select_related("cliente")
+
+    # KPIs de faturamento são só receita de verdade da Optimus (instalação,
+    # manutenção, balcão...). Repasse (equipamento pago direto ao
+    # fornecedor, sem margem — ver criar_lancamento_de_proposta_solar) não
+    # entra aqui: somar inflaria a receita real pelo preço do equipamento
+    # inteiro, que a empresa nunca chega a faturar.
+    qs = qs_todos.filter(tipo=LancamentoFinanceiro.TIPO_RECEITA)
 
     total_liquido = qs.aggregate(s=Sum("valor_liquido"))["s"] or 0
     total_recebido = qs.aggregate(s=Sum("valor_recebido"))["s"] or 0
@@ -254,6 +261,13 @@ def dashboard(request):
     total_vencido = sum(lan.saldo_aberto for lan in pendentes if lan.data_vencimento < today)
 
     inadimplencia_pct = round(total_vencido / total_liquido * 100, 1) if total_liquido > 0 else 0
+
+    # Repasse fica de fora do faturamento, mas ainda vale mostrar — é o
+    # "lembrete de cobrar o cliente pra pagar o fornecedor" que o negócio
+    # pediu, e dá a régua do tamanho real dos negócios fechados.
+    qs_repasse = qs_todos.filter(tipo=LancamentoFinanceiro.TIPO_REPASSE)
+    total_repasse = qs_repasse.aggregate(s=Sum("valor_liquido"))["s"] or 0
+    repasse_pendente = qs_repasse.filter(status__in=["pendente", "parcial"]).count()
 
     # Vencimentos próximos (7 dias)
     proximos = (
@@ -296,6 +310,8 @@ def dashboard(request):
             "total_pendente": total_pendente,
             "total_vencido": total_vencido,
             "inadimplencia_pct": inadimplencia_pct,
+            "total_repasse": total_repasse,
+            "repasse_pendente": repasse_pendente,
             "proximos": proximos,
             "atrasados": atrasados,
             "formas_sorted": formas_sorted,

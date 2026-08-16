@@ -109,6 +109,9 @@
               <span class="badge badge-{% if origem.1 == 'verde' %}verde{% elif origem.1 == 'laranja' %}alerta{% elif origem.1 == 'azul' %}info{% else %}cinza{% endif %}">
                 {{ origem.0 }}
               </span>
+              {% if lan.tipo == 'repasse' %}
+                <span class="badge badge-cinza" title="Paga direto ao fornecedor — não é receita da Optimus">Repasse</span>
+              {% endif %}
             </td>
             <td style="{% if vencido %}color: var(--erro); font-weight: 600;{% endif %}">
               {{ lan.data_vencimento|date:"d/m/Y" }}

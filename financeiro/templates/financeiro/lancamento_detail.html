@@ -22,7 +22,16 @@
     {% else %}
       <span class="badge badge-cinza" style="font-size: 14px;">Cancelado</span>
     {% endif %}
+    {% if lan.tipo == 'repasse' %}
+      <span class="badge badge-cinza" style="font-size: 14px;" title="Paga direto ao fornecedor — não é receita da Optimus">Repasse ao fornecedor</span>
+    {% endif %}
   </h1>
+  {% if lan.tipo == 'repasse' %}
+  <div style="font-size: 13px; color: var(--texto-corpo); margin-top: -8px; margin-bottom: 12px;">
+    <i class="bi bi-info-circle"></i> Este valor o cliente paga direto ao fornecedor do equipamento — não entra no
+    faturamento da Optimus. Fica aqui só para acompanhar se já foi pago.
+  </div>
+  {% endif %}
   <div class="page-header-actions">
     {% if lan.status in 'pendente parcial' %}
     <a href="{% url 'financeiro:editar' lan.pk %}" class="btn-secondary btn-sm">

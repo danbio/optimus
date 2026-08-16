@@ -32,13 +32,21 @@ def _criar_parcelas(lancamento, num_parcelas, data_vencimento_base):
 def criar_lancamento_de_proposta_solar(proposta):
     """Chamado em solar/views.py quando proposta muda para 'aprovada'.
 
-    Lança **só os equipamentos**. A mão de obra entra depois, quando a OS é
-    faturada (ver `criar_lancamento_de_ordem_servico`) — segue o caixa
-    real: o gerador é comprado no início, a instalação só se paga na
-    entrega. Somados, os dois fecham `proposta.valor_total`.
+    ⚠️ Modelo de negócio real da Optimus (confirmado em 2026-08-16): o
+    cliente compra o equipamento **direto do fornecedor** (Intelbras,
+    Belenus), sem margem da Optimus — é assim que a venda de gerador fica
+    isenta do ICMS que incidiria se a Optimus mantivesse estoque próprio. A
+    Optimus nunca fatura nem recebe esse valor; o dinheiro dela vem só de
+    instalação e manutenção.
 
-    ⚠️ Até 2026-08-16 os dois lançavam `valor_total`, cobrando o cliente em
-    dobro. Ver `FaturamentoSolarSemDuplicidadeTests`.
+    Por isso este lançamento nasce com `tipo=REPASSE`: fica registrado (pra
+    lembrar o vendedor de cobrar o cliente pra pagar o fornecedor, e pra dar
+    visibilidade do tamanho real do negócio), mas o dashboard financeiro
+    exclui repasse do KPI de faturamento — contar esse valor como receita
+    infla a receita real da empresa pelo preço do equipamento inteiro.
+
+    A mão de obra é lançada à parte, como receita de verdade, quando a OS é
+    faturada (ver `criar_lancamento_de_ordem_servico`).
     """
     from .models import LancamentoFinanceiro
 
@@ -51,9 +59,10 @@ def criar_lancamento_de_proposta_solar(proposta):
         return None
 
     lan = LancamentoFinanceiro.objects.create(
-        descricao=f"Proposta Solar {proposta.numero} — equipamentos",
+        descricao=f"Proposta Solar {proposta.numero} — equipamentos (repasse ao fornecedor)",
         cliente=proposta.cliente,
         proposta_solar=proposta,
+        tipo=LancamentoFinanceiro.TIPO_REPASSE,
         valor_bruto=valor,
         desconto=0,
         data_vencimento=timezone.localdate() + datetime.timedelta(days=30),

@@ -17,6 +17,13 @@ class LancamentoFinanceiro(BaseModel):
         (STATUS_CANCELADO, "Cancelado"),
     ]
 
+    TIPO_RECEITA = "receita"
+    TIPO_REPASSE = "repasse"
+    TIPO_CHOICES = [
+        (TIPO_RECEITA, "Receita"),
+        (TIPO_REPASSE, "Repasse ao fornecedor"),
+    ]
+
     FORMA_DINHEIRO = "dinheiro"
     FORMA_PIX = "pix"
     FORMA_DEBITO = "cartao_debito"
@@ -37,6 +44,18 @@ class LancamentoFinanceiro(BaseModel):
     numero = models.CharField(max_length=20, unique=True, editable=False, verbose_name="número")
     descricao = models.CharField(max_length=300, verbose_name="descrição")
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default=STATUS_PENDENTE, verbose_name="status")
+    tipo = models.CharField(
+        max_length=10,
+        choices=TIPO_CHOICES,
+        default=TIPO_RECEITA,
+        verbose_name="tipo",
+        help_text=(
+            "Receita: dinheiro que a Optimus realmente fatura e recebe. "
+            "Repasse: o cliente paga direto ao fornecedor (ex.: equipamento "
+            "solar, comprado sem margem da Optimus) — fica registrado para "
+            "acompanhar se foi pago, mas não entra no faturamento da empresa."
+        ),
+    )
 
     valor_bruto = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="valor bruto (R$)")
     desconto = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="desconto (R$)")
