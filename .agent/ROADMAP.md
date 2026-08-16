@@ -1,177 +1,129 @@
-# ROADMAP DE DESENVOLVIMENTO: ERP Optimus
+# ROADMAP — ERP Optimus
 
-> Documento de dívida técnica, gargalos e evolução sistêmica.
-> Atualizado: 2026-04-15.
-
----
-
-## Status em Andamento
-
-| Item | Status | Bloqueia |
-|------|--------|----------|
-| Type Hints em views/services | 🔴 ~3% cobertura (24/725 funções) | Fase 2 (Async requer tipos corretos) |
-| Testes em apps sem cobertura | 🟡 `financeiro` coberto (2026-08-16); faltam clientes, servicos, pos_venda | Refatoração segura |
-| **Faturamento duplicado no fluxo solar** | ✅ Corrigido (2026-08-16) | Auditoria externa achou; provado em teste (R$ 10k viravam R$ 20k). Agora aprovação lança equipamentos e faturamento da OS lança mão de obra. **Zero dano real** — nenhuma OS solar tinha sido faturada |
-| **Corrupção de itens na edição de proposta** | ✅ Corrigido (2026-08-16) | Causa-raiz: `formset.save(commit=False)` devolve só linhas novas/alteradas. Editar 1 de 2 linhas gravava 8 módulos em vez de 14 (potência caía de 5,6 para 3,2 kWp). Snapshot de preço também não atualizava ao trocar equipamento na mesma linha |
-| Travas de estado em proposta fechada | ✅ Feito (2026-08-16) | `SomenteRascunhoMixin` bloqueia editar/excluir fora do rascunho, no `dispatch` (barrar só o GET deixaria POST na mão passar) |
-| Transações atômicas nas transições | ✅ Feito (2026-08-16) | `aprovar_proposta` e `faturar_os` — status e lançamento financeiro agora sobem ou caem juntos |
-| Quebrar views >300 linhas | 🟡 solar feito, faltam ordens_servico, financeiro, estoque, servicos | Edição confiável por agentes |
-| Inline styles nos templates | 🟡 ~1190 ocorrências | Consistência de patches |
-| Async Views / Background Tasks | 🟡 Pendente | Nada, mas depende da Fase 1 |
-| RBAC (grupos de permissão) | ✅ Feito (2026-08-09) | — (era o bloqueador de produção) |
-| Hardening de produção (HTTPS/HSTS/cookies) | ✅ Feito (2026-08-09) | — |
-| PostgreSQL via DATABASE_URL | ✅ Feito (2026-08-09) | — |
-| Backup do banco (`backup_db`) | ✅ Feito (2026-08-09) | — (falta agendar execução em produção) |
-| Mojibake em 24 produtos do estoque | 🔴 Pendente | Nada, mas os nomes aparecem errados na tela |
-| `Inversor.potencia_kw = 6000.00` no SAJ 6K-R5 | 🔴 **Pendente — aparece no PDF do cliente** | Deveria ser `6.00` (o "6K" do modelo é 6 kW). Sai como "6.000,00kW" na proposta impressa. Não é bug de código, é dado errado no cadastro — mas a sugestão de inversor compatível (relação CC:CA) também usa esse campo |
-| Hospedagem com suporte a Python | 🔴 Pendente | **Implantação em produção** |
-| PDF de propostas | ✅ Feito (2026-08-13) | `@media print` + `window.print()`, sem lib externa — ver skill solar-domain §12 |
-| Sugestão automática de inversor compatível | ✅ Feito (2026-08-13) | Relação CC:CA, faixa configurável em `/configuracoes/` — ver skill solar-domain §2.1 |
-| Resumo de fechamento (copiar/colar p/ WhatsApp) | ✅ Feito (2026-08-13) | Card em `proposta_detail.html` — geração, equipamento, valor à vista. Ainda sem financiamento/cartão |
-| **Composição de preço incompleta nas propostas** | 🔴 **Pendente — afeta proposta que vai pro cliente** | Faltam estrutura de fixação, cabos e conectores nos itens. O valor total sai **subestimado**, e como o payback divide o investimento pela economia, ele sai **otimista demais** (ex.: SOL-202608-0006 fechou em 1 ano e 1 mês). O cálculo de retorno está certo; o que entra nele é que não. |
-| Tabela de preços desatualizada | 🔴 Pendente | `PrecoEquipamentoSolar` com preços vencidos — mesma consequência do item acima |
-| Alimentar preços automaticamente (API de fornecedor / scraping) | 🟡 Planejado | Intenção do usuário (2026-08-16) para resolver os dois itens acima de vez, em vez de digitação manual. Ainda sem fornecedor/método definido |
-| Tarifas automáticas via dados abertos da ANEEL | ✅ Feito (2026-08-16) | `solar/aneel.py` + `sincronizar_tarifas_aneel`. API CKAN sem chave. Rodar depois do reajuste anual da distribuidora (julho, no caso da Energisa TO) |
-| **Validar o Ajuste do Fio B contra fatura GDII do ciclo 2026** | 🟡 Dívida técnica — aguardando dado | A hipótese `Ajuste GDII = TUSD_FioB × percentual do ano` está **consistente, não provada**. O ciclo 2025 não está carregado no datastore da ANEEL, então não deu pra fechar a conta. **Previsão testável:** numa fatura GDII de agosto/2026 ou depois (ciclo 2026-07-04), o "Ajuste GDII - TRF Reduzida" deve sair em **R$ 0,264887/kWh** (= 0,441478 × 0,60). Se bater, a hipótese está provada; se não, revisar `TarifaDistribuidora.fio_b_kwh`. Usuário vai enviar a fatura quando localizar |
-| HSP por cidade (NASA POWER + IBGE) | ✅ Feito (2026-08-16) | `solar/geo.py` + `importar_municipios` / `sincronizar_hsp`. 139 municípios do TO sincronizados. Gurupi = 5,58 h/dia. PDF ganhou curva de geração mês a mês — ver skill solar-domain §1 |
-| **Sincronizar HSP de outras UFs** | 🔴 **Dívida técnica confirmada (2026-08-16)** | Só o TO está sincronizado (139 municípios). Proposta para cliente em GO/PA/MA/MT hoje cai no fallback `hsp=5.50` fixo, sem curva mensal nem gráfico de sazonalidade no PDF. Rodar `python manage.py importar_municipios --uf XX` seguido de `python manage.py sincronizar_hsp --uf XX` antes de atender essas UFs — leva alguns minutos por UF (1 requisição à NASA POWER por município) |
-| Validar tarifa digitada contra a ANEEL | 🟡 Planejado | Alertar quando o valor digitado destoar da tarifa homologada — hoje erro de dígito passa em silêncio |
-| Payback / economia conforme Lei 14.300 | ✅ Feito (2026-08-16) | Motor em `solar/services.py`, verificado contra fatura real da Energisa TO. Fio B gradual, custo de disponibilidade, COSIP e autoconsumo simultâneo — ver skill solar-domain §8 |
-| Formatação de moeda `R$ 1.234.567,89` | ✅ Feito (2026-08-16) | `USE_THOUSAND_SEPARATOR=True` — vale para o app inteiro. **Cuidado:** localiza todo número no template, inclusive anos e coordenadas de SVG (ver AGENTS.md) |
-| Financiamento / parcelamento no cartão | ✅ Feito (2026-08-15) | Modelo `TaxaCartao` + admin + seed com tabela real Intelbras (87 linhas) + resumo de fechamento com bandeira/entrada via HTMX — ver skill solar-domain §13. Financiamento bancário segue fora de escopo (lógica própria) |
-
-> **Hospedagem:** o plano atual (Hostinger Business Web Hosting) **não roda
-> Django** — a própria Hostinger documenta que Python exige acesso root,
-> disponível só no VPS. Publicar exige VPS ou uma plataforma gerenciada de
-> Python. A landing (`optimus-landing`, PHP estático) continua onde está.
+> **Atualizado:** 2026-08-16
+>
+> **Como ler:** as seções estão em ordem de prioridade real, não por
+> categoria técnica. A pergunta que organiza tudo é *"o que impede a
+> ferramenta de ser usada com um cliente de verdade?"* — não *"o que está
+> tecnicamente imperfeito?"*.
+>
+> **Decisão de contexto (2026-08-16):** produção **não tem pressa**. A
+> empresa opera há anos sem ferramenta própria; algumas semanas a mais não
+> mudam nada. Por isso tudo que só importa no deploy foi rebaixado, e o que
+> afeta o número que vai ao cliente subiu.
 
 ---
 
-## Fase 0 — Infraestrutura para Agentes (NOVA)
+## 🎯 Próximo passo
 
-**Prioridade:** Crítica — melhora diretamente a qualidade das edições dos agentes de IA.
+Se você abrir este arquivo sem saber por onde continuar, é por aqui:
 
-### Já concluído:
-- [x] `AGENTS.md` unificado na raiz
-- [x] `scripts/check.ps1` (lint + testes + migrations + deploy check)
-- [x] Quebra do `solar/views.py` em subpacote (`propostas.py`, `catalogo.py`, `precos.py`)
-- [x] Atualização de SSOT (pos_venda está implementado, não pendente)
-
-### Pendente:
-- [ ] Quebrar `ordens_servico/views.py` (497 linhas)
-- [ ] Quebrar `estoque/views.py` (346 linhas)
-- [ ] Quebrar `servicos/views.py` (305 linhas)
-- [ ] Quebrar `financeiro/views.py` (305 linhas)
-- [ ] Limpar worktree (commit organizado das 125+ entradas pendentes)
-- [ ] Migrar DIARIO.md para formato compacto (TL;DR + últimas 5 sessões)
+1. ~~Corrigir `Inversor.potencia_kw` do SAJ 6K-R5~~ ✅ feito em 2026-08-16
+   (e o model agora rejeita potência em W, para não repetir).
+2. ~~Aviso de proposta incompleta~~ ✅ feito em 2026-08-16 — card na tela de
+   detalhe lista o que falta antes de virar PDF.
+3. **Popular o catálogo** — 👉 **é aqui que estamos.** Trabalho de dado, seu:
+   cadastrar estruturas de fixação, cabos, conectores, DPS e disjuntores em
+   `/solar/estruturas/` e `/solar/materiais/`, com preço em
+   `/solar/precos/`. Enquanto isso não existe, toda proposta sai
+   subestimada — e o aviso do item 2 vai continuar aparecendo.
 
 ---
 
-## Fase 1 — Conformidade: Type Hints + Testes 🔴
+## 1. Impede usar com cliente real
 
-**Prioridade:** Alta — bloqueia a adoção de async views (Fase 2) e refatoração segura.
+O que faz a proposta sair com número errado. **Maior prioridade.**
 
-### Type Hints
-
-**Onde aplicar (por prioridade de edição dos agentes):**
-- `solar/views/propostas.py` — ✅ já tipado na quebra
-- `solar/views/catalogo.py` — parcialmente tipado
-- `solar/views/precos.py` — ✅ já tipado na quebra
-- `financeiro/views.py` — FBVs e services
-- `financeiro/services.py` — todas as funções
-- `ordens_servico/views.py` — FBVs
-- `balcao/views.py` — FBVs
-- `pos_venda/views.py` — FBVs
-
-**Padrão mínimo exigido:**
-```python
-from django.http import HttpRequest, HttpResponse
-
-def finalizar_venda(request: HttpRequest, pk: int) -> HttpResponse:
-    ...
-```
-
-**Critério de conclusão:** `ruff check --select ANN` sem erros em todos os apps.
-
-### Testes
-
-**Apps sem nenhum teste (prioridade):**
-- `clientes` — testar CRUD, validação CPF/CNPJ
-- `servicos` — testar CRUD de propostas, transições de status
-- `financeiro` — testar lançamentos, parcelas, baixas, services
-- `pos_venda` — testar chamados, interações, mudança de status
-
-**Critério de conclusão:** cada app com pelo menos 1 TestCase cobrindo happy path do CRUD.
+| Item | Situação |
+|---|---|
+| **Catálogo praticamente vazio** | 1 módulo, 1 inversor, 1 estrutura, 2 materiais elétricos. Todos têm preço vigente — o problema **não é preço faltando, é item inexistente**. Sem estrutura de fixação, cabos e conectores cadastrados, nenhuma proposta consegue ficar completa |
+| **Composição de preço incompleta** | Consequência do item acima: o valor total sai **subestimado**, e como o payback divide investimento pela economia, ele sai **otimista demais** (SOL-202608-0006 fechou em 1 ano e 1 mês). O cálculo de retorno está certo; o que entra nele é que não |
+| ~~`Inversor.potencia_kw = 6000.00`~~ | ✅ Corrigido (2026-08-16). O model agora valida a faixa (0,1–500 kW) e rejeita potência digitada em W; módulo idem (50–2000 Wp). A sugestão de inversor voltou a funcionar (81,3% para 4,88 kWp) |
+| ~~Nada avisa que a proposta está incompleta~~ | ✅ Feito (2026-08-16). `PropostaSolar.pendencias` + card na tela de detalhe: aponta falta de módulo/inversor/estrutura/material, mão de obra zerada, item com preço zerado e ausência de tarifa. Não bloqueia o envio — avisa |
+| Tabela de preços pode envelhecer em silêncio | `PrecoEquipamentoSolar` tem vigência, mas nada alerta quando o preço vence |
+| Mojibake em 24 produtos do estoque | Nomes aparecem corrompidos na tela. Não afeta o PDF solar, mas afeta o balcão |
 
 ---
 
-## Fase 2 — Async-First & Background Tasks 🟡
+## 2. Aguardando dado externo
 
-**Prioridade:** Média — impacto percebido somente com volume de dados crescente.
-**Dependência:** Fase 1 concluída.
+Coisas que não dependem de código — dependem de um documento ou de uma decisão de fora.
 
-### Candidatos a Async View
-
-| View | Motivo |
-|------|--------|
-| `financeiro.dashboard` | Múltiplos aggregates + loops Python em memória |
-| `financeiro.LancamentoListView.get_context_data` | KPIs calculados a cada request |
-| `balcao.VendaListView.get_context_data` | Aggregates de totais hoje/mês |
-
-**Padrão Django 6.0+:**
-```python
-async def dashboard(request: HttpRequest) -> HttpResponse:
-    total = await LancamentoFinanceiro.objects.aaggregate(s=Sum("valor_liquido"))
-    ...
-```
-
-### Candidatos a Background Task (Django Tasks Framework nativo)
-
-| Operação | Motivo |
-|----------|--------|
-| `criar_lancamento_de_venda_balcao` | Bloqueia a thread do PDV ao finalizar |
-| Atualização de `status=vencido` em lote | Deve rodar periodicamente, não em cada request |
-
-**⚠️ Atenção:** O backend de tasks do Django 6.x com SQLite tem limitações.
+| Item | O que falta |
+|---|---|
+| **Validar o Ajuste do Fio B** | A hipótese `Ajuste GDII = TUSD_FioB × percentual do ano` está **consistente, não provada** (o ciclo 2025 não está carregado no datastore da ANEEL). **Previsão testável:** numa fatura GDII do ciclo 2026-07-04, o "Ajuste GDII - TRF Reduzida" deve sair em **R$ 0,264887/kWh** (= 0,441478 × 0,60). Se bater, provada; se não, revisar `TarifaDistribuidora.fio_b_kwh`. Usuário vai enviar quando localizar |
+| Sincronizar HSP de outras UFs | Só o TO está sincronizado (139 municípios). Proposta em GO/PA/MA/MT cai no fallback `hsp=5.50` fixo, sem curva mensal no PDF. Rodar `importar_municipios --uf XX` + `sincronizar_hsp --uf XX` antes de atender essas UFs |
+| Distribuidoras fora do TO não validadas | O seed tem 6 distribuidoras, mas só o CNPJ da Energisa TO foi conferido contra fatura real |
 
 ---
 
-## Fase 3 — Evolução de Features
+## 3. Reduz risco de regressão
 
-### PDF de Propostas
-- CSS `@media print` + `window.print()` — sem bibliotecas externas
-- Não depende de nenhuma fase anterior
+Não afeta o cliente hoje, mas encurta o tempo de encontrar o próximo bug.
 
-### `pos_venda` — Evolução
-- ✅ CRUD de chamados implementado
-- ✅ Interações e histórico do cliente implementados
-- Pendente: SLAs, garantias, relatórios
-
----
-
-## Fase 4 — RBAC (Controle de Acesso) 🟠
-
-**Prioridade:** Necessário antes de produção com múltiplos usuários.
-
-| Grupo | Permissões |
-|-------|-----------|
-| `admin` | Todos os módulos |
-| `vendedor` | Criar propostas, venda balcão. Sem financeiro |
-| `tecnico` | Ler/atualizar OS atribuídas. Sem financeiro/preços |
-| `financeiro` | Financeiro completo. Leitura em propostas |
-| `gerente` | Tudo exceto configurações de sistema |
-
-**Implementação:** `LoginRequiredMixin` + `PermissionRequiredMixin` nas CBVs.
+| Item | Situação |
+|---|---|
+| Testes em apps sem cobertura | `financeiro` coberto (2026-08-16). Faltam `clientes`, `servicos`, `pos_venda` |
+| Validar tarifa digitada contra a ANEEL | Alertar quando o valor digitado destoar da tarifa homologada — hoje erro de dígito passa em silêncio |
+| Type hints em views/services | ~3% de cobertura. Critério de conclusão: `ruff check --select ANN` limpo |
+| Quebrar views grandes | `ordens_servico` 500 linhas, `estoque` 346, `servicos` 305, `financeiro` 305. Só `solar` foi quebrado |
+| Inline styles nos templates | 1.249 ocorrências. Dívida de manutenção, **sem risco financeiro** — por isso está aqui e não na seção 1 |
+| 14 migrations em `solar` | Considerar squash quando o schema estabilizar |
+| N+1 em `LancamentoListView` e `VendaListView` | KPIs em loop Python sobre queryset. Só dói com volume |
 
 ---
 
-## Gargalos de Performance Conhecidos
+## 4. Evolução do produto
 
-### N+1 Queries
-- **`LancamentoListView`:** KPIs fazem loop Python sobre QuerySet
-- **`VendaListView`:** Aggregates recalculados a cada request
+Capacidade nova, não correção.
 
-**Correção:** `select_related` + `prefetch_related` + cache de sessão.
+| Item | Observação |
+|---|---|
+| Alimentar preços automaticamente | API de fornecedor ou scraping, para resolver o catálogo de vez em vez de digitação manual. **Sem fornecedor/método definido** |
+| Financiamento bancário | Lógica própria (Price), diferente da tabela de cartão. Fora de escopo por decisão do usuário |
+| `pos_venda`: SLAs, garantias, relatórios | CRUD, interações e histórico já existem |
+| Async views / background tasks | Só faz sentido com volume. Candidatos: `financeiro.dashboard`, baixa de estoque do balcão, atualização de `status=vencido` em lote |
+| Google Solar API | Área de telhado e sombreamento por endereço. Custa ~US$ 0,005/consulta — ver skill solar-domain §13 |
 
-### Migrações acumuladas em `solar`
-- 10 migrações. Considerar squash quando banco estiver estável.
+---
+
+## 5. Só importa no dia do deploy
+
+**Deliberadamente adiado.** Nada aqui bloqueia o desenvolvimento.
+
+| Item | Situação |
+|---|---|
+| Hospedagem com suporte a Python | O plano atual (Hostinger Business) **não roda Django** — Python exige root, disponível só no VPS. Publicar exige VPS ou plataforma gerenciada. A landing (`optimus-landing`, PHP estático) continua onde está |
+| Agendar `backup_db` em produção | O comando existe e foi testado com restauração real; falta agendar |
+| Checklist de deploy | Validar `DJANGO_ENV` e `SECRET_KEY` forte antes de subir. O hardening já é automático sob `DJANGO_ENV=production`, mas nada impede subir sem a variável |
+
+---
+
+## ✅ Concluído
+
+Arquivo histórico — o "porquê" de cada um está no `DIARIO.md` e nas skills.
+
+**Módulo solar (o coração da ferramenta)**
+- Payback/economia conforme Lei 14.300, verificado contra 2 faturas reais (2026-08-16) — skill §8
+- Tarifas automáticas da ANEEL, API CKAN sem chave (2026-08-16) — skill §8
+- HSP por município via IBGE + NASA POWER, com curva de geração mês a mês (2026-08-16) — skill §1
+- Financiamento no cartão com tabela real Intelbras (2026-08-15) — skill §11.2
+- Resumo de fechamento para WhatsApp (2026-08-13) — skill §11.1
+- PDF da proposta via `window.print()`, sem lib externa (2026-08-13) — skill §12
+- Sugestão automática de inversor compatível (2026-08-13) — skill §2.1
+
+**Integridade de dados (auditoria externa de 2026-08-16)**
+- Faturamento duplicado corrigido — provado em teste: R$ 10k viravam R$ 20k. Zero dano real
+- Corrupção de itens na edição — `formset.save(commit=False)` só devolve linhas alteradas
+- Travas de estado em proposta fechada (`SomenteRascunhoMixin`, no `dispatch`)
+- Transações atômicas nas transições de status
+- Teste que falha se app for incluído sem namespace (fecha o fail-open do RBAC)
+
+**Infraestrutura**
+- RBAC por grupos, matriz central em `core/permissoes.py` (2026-08-09)
+- Hardening de produção sob `DJANGO_ENV` (2026-08-09)
+- PostgreSQL via `DATABASE_URL` (2026-08-09)
+- Comando `backup_db` com restauração testada (2026-08-09)
+- Formatação de moeda `R$ 1.234.567,89` em todo o app (2026-08-16)
+- `AGENTS.md` unificado + `scripts/check.ps1`
+- Quebra de `solar/views.py` em subpacote

@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import Group, User
+from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
@@ -980,6 +981,120 @@ def _municipio(nome="Gurupi", uf="TO", codigo=1709500, hsp=None):
         latitude=Decimal("-11.65"), longitude=Decimal("-48.84"),
         hsp_mensal=hsp, hsp_anual=Decimal("5.00"),
     )
+
+
+class PendenciasDaPropostaTests(TestCase):
+    """Aviso de proposta incompleta.
+
+    O sistema aceitava em silêncio proposta só com módulo e inversor. Sem
+    estrutura e material elétrico o valor total sai subestimado e o payback
+    fica otimista demais — o pior erro para mostrar a cliente."""
+
+    def setUp(self) -> None:
+        self.modulo = _modulo()
+        self.inversor = _inversor()
+        self.estrutura = _estrutura()
+        self.proposta = _proposta(self.modulo)
+
+    def _item(self, **kwargs):
+        base = dict(
+            proposta=self.proposta, quantidade=1,
+            preco_venda_snapshot=Decimal("100"), preco_custo_snapshot=Decimal("80"),
+            data_referencia_preco=date.today(),
+        )
+        base.update(kwargs)
+        return ItemPropostaSolar.objects.create(**base)
+
+    def test_proposta_vazia_aponta_tudo_que_falta(self) -> None:
+        pendencias = " ".join(self.proposta.pendencias)
+
+        self.assertIn("módulo", pendencias)
+        self.assertIn("inversor", pendencias)
+        self.assertIn("estrutura", pendencias)
+        self.assertIn("materiais elétricos", pendencias)
+
+    def test_falta_de_estrutura_e_material_e_sinalizada(self) -> None:
+        """O caso real: vendedor lança só módulo e inversor."""
+        self._item(modulo=self.modulo, quantidade=10)
+        self._item(inversor=self.inversor)
+
+        pendencias = " ".join(self.proposta.pendencias)
+
+        self.assertIn("estrutura de fixação", pendencias)
+        self.assertIn("materiais elétricos", pendencias)
+        self.assertNotIn("Nenhum módulo", pendencias)
+
+    def test_proposta_completa_nao_gera_aviso_de_equipamento(self) -> None:
+        material = MateriaisEletricos.objects.create(
+            fabricante="F", modelo="Cabo 6mm", categoria="cabo", unidade="m"
+        )
+        self._item(modulo=self.modulo, quantidade=10)
+        self._item(inversor=self.inversor)
+        self._item(estrutura=self.estrutura)
+        self._item(material=material)
+        self.proposta.tarifa_kwh = Decimal("1.38")
+        self.proposta.save()
+
+        self.assertEqual(self.proposta.pendencias, [])
+
+    def test_item_com_preco_zerado_e_sinalizado(self) -> None:
+        """Preço zerado quase sempre é equipamento sem preço vigente."""
+        self._item(modulo=self.modulo, preco_venda_snapshot=Decimal("0"))
+
+        self.assertIn(
+            "Há item com preço zerado — confira se o equipamento tem preço vigente.",
+            self.proposta.pendencias,
+        )
+
+    def test_mao_de_obra_zerada_e_sinalizada(self) -> None:
+        self.proposta.valor_instalacao = Decimal("0")
+        self.proposta.save()
+
+        self.assertIn("Mão de obra de instalação está zerada.", self.proposta.pendencias)
+
+    def test_sem_tarifa_avisa_que_o_pdf_sai_sem_retorno(self) -> None:
+        pendencias = " ".join(self.proposta.pendencias)
+
+        self.assertIn("análise de retorno", pendencias)
+
+    def test_aviso_aparece_na_tela_de_detalhe(self) -> None:
+        user = User.objects.create_user(username="vend_pend", password="senha-de-teste")
+        user.groups.add(Group.objects.get_or_create(name=GRUPO_ADMIN)[0])
+        self.client.force_login(user)
+
+        resposta = self.client.get(reverse("solar:detalhe", args=[self.proposta.pk]))
+        corpo = resposta.content.decode("utf-8")
+
+        self.assertIn("Confira antes de enviar ao cliente", corpo)
+        self.assertIn("estrutura de fixação", corpo)
+
+
+class PotenciaDeEquipamentoValidadaTests(TestCase):
+    """Trava do erro de unidade que já aconteceu de verdade: o SAJ 6K-R5
+    foi cadastrado com 6000 kW em vez de 6, saiu "6.000,00kW" no PDF do
+    cliente e inutilizou a sugestão de inversor compatível."""
+
+    def _inversor(self, potencia):
+        return Inversor(
+            fabricante="TestFab", modelo="INV", potencia_kw=potencia,
+            tipo=Inversor.TIPO_STRING, fase=Inversor.FASE_MONO,
+            tensao_max_entrada=600, quantidade_mppt=2, garantia=5,
+        )
+
+    def test_inversor_em_watts_e_rejeitado(self) -> None:
+        with self.assertRaises(ValidationError):
+            self._inversor(Decimal("6000")).full_clean()
+
+    def test_inversor_em_kw_passa(self) -> None:
+        self._inversor(Decimal("6")).full_clean()  # não levanta
+
+    def test_modulo_em_kwp_e_rejeitado(self) -> None:
+        modulo = ModuloFotovoltaico(
+            fabricante="F", modelo="M", potencia_wp=1, eficiencia=20, voc=48, isc=10,
+            largura=1000, altura=2000, peso=22, garantia_produto=12, garantia_desempenho=25,
+        )
+        with self.assertRaises(ValidationError):
+            modulo.full_clean()
 
 
 class EdicaoDePropostaNaoCorrompeItensTests(TestCase):

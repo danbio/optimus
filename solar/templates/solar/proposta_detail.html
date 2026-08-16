@@ -47,6 +47,26 @@
   </div>
 </div>
 
+{% if proposta.pendencias %}
+<div class="card" id="pendencias-proposta" style="border-left: 4px solid var(--alerta);">
+  <div class="card-header" style="color: var(--texto-titulo);">
+    <i class="bi bi-exclamation-triangle" style="color: var(--alerta);"></i>
+    Confira antes de enviar ao cliente
+  </div>
+  <div class="card-body">
+    <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+      {% for aviso in proposta.pendencias %}
+        <li style="margin-bottom: 4px;">{{ aviso }}</li>
+      {% endfor %}
+    </ul>
+    <div style="font-size: 12px; color: var(--texto-corpo); margin-top: 10px;">
+      Proposta incompleta sai com valor subestimado — e o payback, que divide o investimento
+      pela economia, fica <strong>otimista demais</strong>. Não impede enviar, mas confira.
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="card" id="resumo-fechamento-card">
   {% include "solar/_resumo_fechamento.html" %}
 </div>

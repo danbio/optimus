@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import IntegrityError, models
 
 from clientes.models import Cliente
@@ -16,7 +17,13 @@ NOMES_DOS_MESES = ("Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set"
 class ModuloFotovoltaico(BaseModel):
     fabricante = models.CharField(max_length=100, verbose_name="fabricante")
     modelo = models.CharField(max_length=100, verbose_name="modelo")
-    potencia_wp = models.IntegerField(verbose_name="potência (Wp)")
+    potencia_wp = models.IntegerField(
+        # Mesma trava do inversor, na unidade oposta: módulo digitado em kW
+        # (0 ou 1) ou em W errado por ordem de grandeza não passa.
+        validators=[MinValueValidator(50), MaxValueValidator(2000)],
+        verbose_name="potência (Wp)",
+        help_text="Em Wp, não em kWp. Um módulo de 610 W se cadastra como 610.",
+    )
     eficiencia = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="eficiência (%)")
     voc = models.DecimalField(max_digits=6, decimal_places=2, verbose_name="tensão circuito aberto - Voc (V)")
     isc = models.DecimalField(max_digits=6, decimal_places=2, verbose_name="corrente curto-circuito - Isc (A)")
@@ -59,7 +66,16 @@ class Inversor(BaseModel):
 
     fabricante = models.CharField(max_length=100, verbose_name="fabricante")
     modelo = models.CharField(max_length=100, verbose_name="modelo")
-    potencia_kw = models.DecimalField(max_digits=6, decimal_places=2, verbose_name="potência (kW)")
+    potencia_kw = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        # Trava o erro clássico de digitar em W: o SAJ 6K-R5 foi cadastrado
+        # como 6000 em vez de 6, saiu "6.000,00kW" no PDF do cliente e
+        # inutilizou a sugestão de inversor compatível por meses.
+        validators=[MinValueValidator(Decimal("0.1")), MaxValueValidator(Decimal("500"))],
+        verbose_name="potência (kW)",
+        help_text="Em kW, não em W. Um inversor “6K” são 6 kW.",
+    )
     tipo = models.CharField(max_length=10, choices=TIPO_CHOICES, default=TIPO_STRING, verbose_name="tipo")
     fase = models.CharField(max_length=10, choices=FASE_CHOICES, default=FASE_MONO, verbose_name="fase")
     tensao_max_entrada = models.IntegerField(verbose_name="tensão máx. entrada (V)")
@@ -669,6 +685,41 @@ class PropostaSolar(BaseModel):
         if not self.modulo:
             return 0
         return round(self.quantidade_modulos * self.modulo.area_m2, 2)
+
+    @property
+    def pendencias(self):
+        """O que falta na proposta para ela ser confiável.
+
+        Existe porque o sistema aceitava em silêncio uma proposta só com
+        módulo e inversor. Faltando estrutura e material elétrico, o valor
+        total sai subestimado — e como o payback divide o investimento pela
+        economia, ele sai **otimista demais**, que é o pior tipo de erro
+        para mostrar a um cliente.
+
+        Retorna lista de mensagens; vazia quer dizer proposta completa.
+        """
+        itens = list(self.itens.all())
+        avisos = []
+
+        if not any(item.modulo_id for item in itens):
+            avisos.append("Nenhum módulo fotovoltaico na lista de equipamentos.")
+        if not any(item.inversor_id for item in itens):
+            avisos.append("Nenhum inversor na lista de equipamentos.")
+        if not any(item.estrutura_id for item in itens):
+            avisos.append("Falta a estrutura de fixação — o valor total está subestimado.")
+        if not any(item.material_id for item in itens):
+            avisos.append("Faltam materiais elétricos (cabos, conectores, DPS, disjuntores).")
+
+        if not self.valor_instalacao:
+            avisos.append("Mão de obra de instalação está zerada.")
+
+        if any(item.preco_venda_snapshot <= 0 for item in itens):
+            avisos.append("Há item com preço zerado — confira se o equipamento tem preço vigente.")
+
+        if not self.tarifa_kwh and not self.distribuidora_id:
+            avisos.append("Sem distribuidora nem tarifa: o PDF sai sem a análise de retorno.")
+
+        return avisos
 
     @property
     def geracao_mensal_serie(self):
