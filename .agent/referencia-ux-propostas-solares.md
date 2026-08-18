@@ -89,6 +89,26 @@ Ou seja: o mínimo pra começar é nome + UF + cidade. Tudo que dá acabamento
 (endereço completo, contato) é opcional — o vendedor preenche depois, ou
 nunca, sem travar.
 
+**Achado novo (print do usuário, 2026-08-18):** ao preencher CEP + rua +
+bairro, um **mapa do Google embutido** aparece abaixo do formulário com um
+pino na localização — confirmação visual imediata do endereço, sem sair da
+tela. Menu lateral também revela, quando "Novo Projeto" está expandido, a
+taxonomia completa de tipos de projeto que a plataforma oferece (só
+exploramos "On Grid → Dimensionado" até agora):
+
+```
+Avulso
+On Grid
+  Dimensionado   ← o que exploramos
+  Personalizado  ← provavelmente sem motor de sugestão automática
+  Kits           ← pacotes pré-configurados
+  Híbrido
+    Dimensionado
+Off Grid
+  Dimensionado
+  Kits
+```
+
 ### 1.4 Tela 2 — Configurações do Gerador
 
 Campo mais rico do fluxo. Campos:
@@ -113,8 +133,26 @@ Campo mais rico do fluxo. Campos:
   `autoconsumo_simultaneo_pct` na skill solar-domain.
 - **Potência desejada (kWp)**
 - Toggle: **"Informar a potência desejada"** vs **"Calcular com base no
-  consumo do cliente"** — dois modos de entrada. Hoje só temos o segundo
-  (a partir do consumo).
+  consumo do cliente"** — dois modos de entrada.
+
+  **Detalhe do segundo modo (print do usuário, 2026-08-18)**, que é o mais
+  parecido com o que já temos, mas bem mais rico: ao selecioná-lo, abre
+  **"Do mês" / "Até o mês"** (dois seletores de mês/ano, ex.: Mai/2026 a
+  Jun/2026) definindo uma janela, e então **um campo de consumo em kWh por
+  cada mês daquele intervalo** (ex.: Mai/2026 → 250,00, Jun/2026 → 423,00).
+  Só depois disso um botão **"CALCULAR POTÊNCIA"** preenche a "Potência
+  desejada em kWp" (read-only).
+
+  Ou seja: em vez de um único campo "consumo médio mensal" (o que
+  `PropostaSolar.consumo_medio_kwh` faz hoje), eles pedem o **histórico
+  real de consumo mês a mês** direto das últimas faturas do cliente, e a
+  média/dimensionamento sai daí. É mais fiel ao consumo real (que varia por
+  mês, principalmente em imóvel com ar-condicionado sazonal) do que um
+  número médio digitado de memória pelo vendedor. Contraponto: mais campos
+  pra preencher — bate direto no princípio dele de "não travar por
+  informação faltante", já que aqui a informação detalhada que ajudaria a
+  precisão não é obrigatória (o modo 1, potência direta, continua
+  disponível pra quem não tem os dados em mãos).
 
 Uma caixa fixa **"Premissas de Cálculo"** aparece em todas as telas do
 wizard, documentando a metodologia (fonte do HSP, fórmula de geração
@@ -180,11 +218,31 @@ manual item a item.
 
 ### 1.8 Tela 6 — Valor Total ("Valor do Serviço")
 
-- **Tipo de proposta** — dropdown, vi a opção **"Apenas gerador sem
-  instalação"**. Confirma formalmente (na visão do próprio fabricante) que
-  equipamento e instalação são tratados como coisas separadas — igual ao
-  que fizemos com `valor_equipamentos` (repasse) vs `valor_instalacao`
-  (receita).
+- **Tipo de proposta** — dropdown com pelo menos duas opções, confirmadas
+  em duas explorações diferentes:
+  - **"Apenas gerador sem instalação"** — só o equipamento.
+  - **"Gerador com instalação"** — revela um campo a mais, **"Valor do
+    serviço líquido (R$)"**, digitado manualmente pelo vendedor (não
+    calculado — ex.: R$ 5.000,00 no print do usuário).
+
+  Confirma formalmente (na visão do próprio fabricante) que equipamento e
+  instalação são tratados como coisas separadas — igual ao que fizemos com
+  `valor_equipamentos` (repasse) vs `valor_instalacao` (receita).
+
+  **Achado novo (print do usuário, 2026-08-18) — gross-up de imposto no
+  serviço:** o vendedor digitou "Valor do serviço líquido" = R$ 5.000,00,
+  mas o painel "Valores:" à direita mostra **"Valor do serviço da revenda
+  com PIS/COFINS" = R$ 5.500,55** (ícone ⓘ do lado, não explorado). Isso é
+  um gross-up de ~10,01% aplicado ao valor líquido digitado — ou seja, a
+  Intelbras faz pro **serviço da revenda** o mesmo tipo de conta que fizemos
+  pro **consumo de energia** em `aplicar_tributos()` (`solar/services.py`):
+  o vendedor digita o valor líquido que quer receber, o sistema mostra o
+  valor bruto com tributo embutido pro cliente. Não temos isso hoje —
+  `valor_instalacao` é digitado e usado direto, sem gross-up de ISS/PIS/
+  COFINS sobre o serviço. Vale investigar se a Optimus tem tributação sobre
+  o serviço de instalação que hoje não está sendo refletida no valor
+  mostrado ao cliente (pergunta pro usuário, não decisão minha).
+
 - **Custo anual com manutenção** — campo que não temos. Como manutenção é
   uma das duas pernas do faturamento real da Optimus (a outra é
   instalação), pode valer a pena um campo equivalente.
@@ -196,10 +254,15 @@ manual item a item.
   é opt-in, não afeta o valor base se ignorado.
 - **Resumo do projeto**: título, HSP médio (**5,28** pra Gurupi/TO, base
   INPE 2006 — vs nosso **5,58** via NASA POWER; diferença de ~5,7%,
-  esperada dado que são fontes/anos diferentes), potência do gerador,
-  **peso do gerador (kg)** e **peso do gerador no telhado (kg)** — dado de
-  engenharia que não expomos hoje, e que já temos a matéria-prima pra
-  calcular (`peso` já existe em `ModuloFotovoltaico`).
+  esperada dado que são fontes/anos diferentes; **confirmado idêntico em
+  duas explorações**, então é fixo por local, não varia com o sistema),
+  potência do gerador, **peso do gerador (kg)** e **peso do gerador no
+  telhado (kg)** — dado de engenharia que não expomos hoje, e que já temos
+  a matéria-prima pra calcular (`peso` já existe em `ModuloFotovoltaico`).
+  Exemplos reais capturados: 5,58 kWp → 338,15 kg / 328,90 kg no telhado;
+  3,10 kWp → 180,39 kg / 174,99 kg no telhado (a diferença entre peso total
+  e peso "no telhado" deve ser o peso do inversor, que geralmente não fica
+  no telhado).
 
 ### 1.9 Menu Projetos (lista) — card rico
 
@@ -265,6 +328,17 @@ Belenus também.
   todos precisam ser mesmo.
 - Considerar um segundo modo de dimensionamento: **potência desejada
   direto**, além do "a partir do consumo" que já existe.
+- Trocar o campo único "consumo médio mensal" por **consumo mês a mês**
+  (janela de datas + um valor por mês) — mais fiel ao histórico real de
+  fatura do cliente, ao custo de mais campos (mas nenhum obrigatório).
+- Mapa embutido (Google Maps) na tela de endereço do cliente — feedback
+  visual imediato, baixo esforço se já tivermos uma API key de mapas
+  disponível (verificar).
+- **Investigar se o serviço de instalação da Optimus tem tributo (ISS?)
+  que deveria aparecer como gross-up no valor mostrado ao cliente** —
+  achado da Intelbras (serviço líquido digitado vs. bruto com PIS/COFINS
+  mostrado) sugere que isso é prática comum no setor. Pergunta pro
+  usuário, não decisão técnica.
 - Motor de "receita" de materiais por {tipo de estrutura} × {fileiras} —
   maior alavanca pra resolver o catálogo vazio de estrutura/material,
   mas é a peça de maior esforço de implementação de tudo isso.
