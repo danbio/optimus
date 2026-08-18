@@ -307,21 +307,232 @@ card de repasse, mas não tem gráfico de série temporal comparando os dois).
 
 ---
 
-## 2. Belenus — Portal do Parceiro
+## 2. Belenus — "Gerador Personalizado" (`belenus.com.br/energy/modulo`)
 
-*(a preencher — usuário vai mostrar o fluxo em seguida)*
+Explorado pelo próprio usuário (prints, 2026-08-18), logado como `Optimus
+Empreendimentos L...`. Veredito dele, nas próprias palavras: **"O fluxo é
+muito semelhante mas a experiência da Intelbras é mais agradável."** — ver
+§3 pra síntese do porquê.
+
+### 2.1 Estrutura do wizard — 6 passos, começa pelo técnico, não pelo cliente
+
+```
+1 Módulo → 2 Inversor → 3 Estrutura → 4 Componentes Elétricos CC
+  → 5 Componentes Elétricos CA → 6 Confirmação
+```
+
+**Diferença estrutural mais importante em relação à Intelbras:** aqui o
+fluxo começa **sem identificar o cliente nenhum** — só pede de onde comprar
+(UF de faturamento) e a potência do sistema. O cliente só é anexado no
+**último passo** (Confirmação), como campo opcional ("Cadastrar cliente").
+É o oposto exato da Intelbras, que abre pedindo nome/UF/cidade do cliente
+antes de qualquer cálculo técnico.
+
+### 2.2 Passo 1 — Módulo
+
+- `1º) ESCOLHA POR ONDE QUER COMPRAR:` — UF de faturamento (já veio
+  preenchido "BELENUS - GO", com link "Alterar")
+- `2º) INFORME A POTÊNCIA DO SISTEMA:` — um único campo `kWp` + botão `›`.
+  Sem alternativa de "calcular a partir do consumo" nesta tela (diferente
+  da Intelbras, que oferece os dois modos já no passo 1).
+- Depois de informar a potência, lista os módulos disponíveis (os mesmos 3
+  que já cadastramos: RONMA 585W, TCL 615W, Astronergy 715W) numa tabela:
+  Produto | Potência (W) | **Qtd. Módulo sistema** (editável, +/-) |
+  **Potência do sistema (kWp)** (recalcula ao vivo conforme a quantidade)
+  | Selecionar (radio).
+  Ordenação por "Menor Preço Por Watt" — outra forma de comparar módulos
+  que não é só preço total.
+
+### 2.3 Passo 2 — Inversor
+
+- Barra de resumo fixa no topo: `Qtd. Módulos: 9 | Potência do sistema:
+  5.26 kWp` — esse resumo acompanha o usuário nas telas seguintes também
+  (mesmo princípio da caixa "Premissas de Cálculo" da Intelbras, mas com
+  números do projeto em vez de metodologia).
+- Filtros: tipo de inversor (String On-Grid), tipo de ligação (Monofásico),
+  tensão de saída (127/220V), **fabricante — multi-select com checkbox**
+  (Auxsol, Deye, Growatt, Huawei, Solis, Sungrow, com busca).
+  Texto de ajuda memorável: *"Ao selecionar todos os fabricantes ou manter
+  este campo em branco a plataforma selecionará a opção de melhor
+  custo-benefício em nosso catálogo."* — ou seja, filtro vazio não é "sem
+  resultado", é "deixa o sistema escolher o melhor pra você". Um padrão de
+  default inteligente que vale considerar.
+- **Achado direto pra nós:** a tabela de resultado mostra, por inversor,
+  três números na coluna "Potências": `4 kW (Potência Nominal)` / `5.26
+  kWp (Potência Sistema)` / **`31,50% Overload utilizado`**. Esse
+  "% Overload" é a mesma conta que já fazemos em
+  `inversores_compativeis()` (`ratio_pct = kwp / potencia_kw × 100`), só
+  que a Belenus expõe direto na tabela de escolha (positivo = sistema
+  acima da potência nominal do inversor; negativo = inversor
+  superdimensionado, ex. `-47,40%`) em vez de só marcar
+  compatível/incompatível como fazemos hoje. Mostrar o percentual bruto,
+  não só um badge, dá mais contexto pro vendedor decidir.
+
+### 2.4 Passo 3 — Estrutura
+
+- Barra de resumo cresce a cada passo: agora mostra também `Qtd.
+  Inversores`, `Máx. potência de entrada`, `Máx. potência saída`.
+- Toggle `Com Estrutura` / `Sem Estrutura`.
+- Por "Arranjo" (suporta múltiplos arranjos — `+ Adicionar arranjo` —
+  pensado pra telhados com mais de uma água/orientação): tipo de
+  estrutura, detalhe do modelo específico (dropdown dentro do tipo — ex.
+  "Haste de aço inoxidável - Modelo com 200mm..."), número de linhas,
+  módulos por linha, tipo de orientação (retrato/paisagem).
+- `Layout dos Módulos: Você utilizou 9 dos 9 módulos selecionados` — mesmo
+  contador da Intelbras ("módulos restantes"), só que contando pra cima em
+  vez de para baixo.
+- **Achado rico que a Intelbras não tinha:** descrição técnica detalhada
+  do componente específico escolhido (ex. explica que é "ideal para telhas
+  de fibrocimento com estruturas de terças em madeira", medidas exatas),
+  **galeria de fotos** do produto (parafusos, hastes, suporte) e **vídeos
+  embutidos** — "Montagem em telhado" e "Montagem do conjunto". A
+  Intelbras só tinha um aviso de texto pra "consultar o datasheet"; aqui
+  tem tutorial em vídeo dentro do próprio fluxo.
+
+### 2.5 Passos 4/5 — Componentes Elétricos CC / CA
+
+Mesma lógica de "receita automática" que a Intelbras (§1.7) — a partir do
+arranjo de estrutura, sugere quantidade de cada material, mas com marca
+própria (**BelEnergy**, não Belenus) em todos os itens:
+
+```
+Garra Aterramento 2 peças        (qtd sugerida 1)
+Grampo Final 30mm 4 peças        (qtd sugerida 1)
+Grampo Intermediário 2 peças     (qtd sugerida 8)
+Haste Solar 10mm x 200mm 2 peças (qtd sugerida 6)
+Junção para Perfil 1 peça        (qtd sugerida 8)
+Perfil Fixação 1,23m             (qtd sugerida 2)
+Perfil Fixação 2,36m             (qtd sugerida 8)
+Suporte Pé em L Fibrocimento     (qtd sugerida 6)
+```
+
+Cada linha tem quantidade editável (+/-) **e um ícone de lixeira pra
+remover o item da lista inteiro** — a Intelbras só deixava zerar a
+quantidade, não removia a linha.
+
+**Isso confirma com um segundo fornecedor** que o motor de "receita de
+materiais a partir do arranjo físico" (§1.7 e ideia já anotada) não é
+peculiaridade de uma empresa — é o padrão esperado do setor. Reforça a
+prioridade dessa ideia se um dia for implementada.
+
+### 2.6 Passo 6 — Confirmação
+
+- **Resumo do Orçamento** (potência, qtd. módulos, qtd. inversores*,
+  potência máx. entrada/saída) + link "Ver detalhe dos itens" que expande
+  uma lista rolável com logo da marca, quantidade e nome de cada item
+  (módulos, inversor, todos os componentes de fixação).
+
+  *bug observado no site deles, não replicar: o card "Qtd. Inversores"
+  mostrou "5.26" (igual à potência do sistema) em vez de "1" — aparente
+  erro de binding no formulário deles.
+
+- **Só aqui** aparecem: nome da proposta, e "Dados de entrega" (UF/cidade
+  — não pede mais que isso) com botão "Cadastrar cliente" — de novo, o
+  cliente é anexado no fim, não no início.
+- **Valor dos produtos** (R$) — separado.
+- **Valor dos serviços** — campo vazio com aviso: *"O valor do frete
+  poderá ser alterado caso haja um valor de serviço."* ⚠️ Aqui "serviço"
+  parece se referir a **frete/logística de entrega**, não instalação —
+  sentido diferente do "Valor do Serviço" da Intelbras (que era mão de
+  obra de instalação). Não confundir os dois ao comparar.
+- **Seguro de instalação** — toggle opcional. Produto que não existe na
+  Intelbras nem na Optimus hoje.
+- **Cupons disponíveis** — sistema de cupom de desconto.
+- **"Vantagens de financiar com a gente"** — 3 cards de desconto
+  (6% / 5% / 5%) por forma de financiamento (BelEnergy, e dois bancos
+  parceiros), cada um já mostrando o valor de desconto em R$. Empilha
+  incentivo de financiamento com desconto — mais agressivo comercialmente
+  que a Intelbras (que só linkava "simular financiamento").
+- Botões finais: **Voltar / Baixar PDF / Salvar / Comprar Agora**.
+
+### 2.7 O flavor geral é "carrinho de e-commerce", não "proposta comercial"
+
+Ao longo do fluxo aparecem elementos claramente herdados de loja virtual:
+"ADICIONAR AO CARRINHO" na navegação de catálogo, ícone de carrinho no
+header, cupom de desconto, "Comprar Agora" como call-to-action final. É
+coerente — a Belenus é, antes de tudo, um distribuidor com loja online, e
+o "Gerador Personalizado" parece ser essa mesma engine de e-commerce
+reaproveitada para montar um kit. Contraste com a Intelbras, que é
+construída do zero como ferramenta de **gestão de propostas** (tem funil
+de vendas, dashboard, "menu de projetos" com 1.292 registros — ver §1.1 e
+§1.9) e só depois conecta com a compra dos produtos.
 
 ---
 
-## 3. Ideias de aplicação — só anotadas, nada decidido
+## 3. Diagnóstico — por que a Intelbras "é mais agradável" (síntese)
+
+Veredito do usuário, comparando os dois fluxos que acabou de percorrer
+lado a lado. Acho que dá pra apontar 3 diferenças estruturais que
+explicam a percepção, não só "polish" visual:
+
+1. **Personalização desde o primeiro clique vs. só no fim.** A Intelbras
+   abre perguntando o nome do cliente — a sensação é "estou montando a
+   proposta do Fulano" do início ao fim. A Belenus constrói um kit
+   genérico e só amarra num cliente na última tela — a sensação é "estou
+   configurando um produto", e o cliente é quase um detalhe de checkout.
+   Pra um vendedor cujo trabalho é justamente gerenciar propostas de
+   clientes específicos (não vender peça avulsa), o primeiro modelo casa
+   melhor com a tarefa mental que ele já está fazendo.
+2. **Ferramenta de gestão vs. loja reaproveitada.** A Intelbras tem funil
+   de vendas, dashboard, lista de projetos com 1.292 registros — foi
+   desenhada pra alguém acompanhar múltiplas propostas ao longo do tempo.
+   A Belenus tem cupom de desconto e botão "Comprar Agora" — foi desenhada
+   pra fechar uma compra. São otimizações diferentes: uma pra "gerenciar
+   relacionamento comercial", outra pra "converter carrinho". A Optimus
+   (ver skill financeiro-domain — venda direta, sem margem, faturamento
+   vem de instalação/manutenção) se parece mais com o primeiro caso: o
+   valor do negócio dela está em administrar bem o relacionamento e o
+   serviço, não em vender peça.
+3. **Confiança/transparência visível o tempo todo.** A caixa fixa
+   "Premissas de Cálculo" da Intelbras aparece em toda tela do wizard,
+   sempre visível — dá segurança que a metodologia é conhecida e estável
+   página a página. A Belenus não repete esse tipo de rodapé explicativo
+   (compensa em outro lugar — fotos/vídeo do produto — mas não no mesmo
+   nível de "aqui está a fórmula que estou usando").
+
+**Implicação pro nosso desenho, se formos adotar o padrão wizard:** manter
+os dados do cliente como ponto de partida (já é assim hoje —
+`PropostaSolar.cliente` é o primeiro campo do form) parece a escolha certa
+a preservar, não uma coisa a questionar. O ganho de imitar a Intelbras
+está mais na **estrutura de passos com resumo fixo/premissas visíveis** e
+no **motor de materiais a partir do arranjo físico** (confirmado por dois
+fornecedores agora) do que em copiar a ordem do fluxo Belenus.
+
+---
+
+## 4. Ideias de aplicação — só anotadas, nada decidido
 
 Não é lista de tarefas. É o que ficou de "isso poderia inspirar X" pra
-revisitar quando o usuário decidir o que priorizar, depois de ver a
-Belenus também.
+revisitar quando o usuário decidir o que priorizar. Já cobre as duas
+referências (Intelbras + Belenus).
 
 - Formulário de proposta com **passos/abas visíveis** (tipo wizard) em vez
   de um formulário longo único — mais parecido com o que a equipe já
-  conhece.
+  conhece. **Manter os dados do cliente como primeiro passo** (padrão
+  Intelbras, não Belenus — ver §3, item 1: casa melhor com o trabalho real
+  do vendedor).
+- **Resumo fixo/crescente no topo do wizard** conforme o vendedor avança
+  (ex.: "Qtd. módulos: 9 · Potência: 5,26 kWp · Qtd. inversores: 1 · Máx.
+  entrada: 6 kW") — confirmado nos dois fornecedores, dá contexto sem
+  precisar rolar a tela pra cima.
+- **Motor de "receita" de materiais** por {tipo de estrutura} × {fileiras}
+  — confirmado em **dois** fornecedores agora (Intelbras §1.7, Belenus
+  §2.5), não é peculiaridade de um só. É a maior alavanca pra resolver o
+  catálogo vazio de estrutura/material, mas também a peça de maior esforço
+  de implementação de tudo isso.
+- Mostrar o **percentual de overload/subdimensionamento** direto na tabela
+  de seleção de inversor (ex. "31,50% Overload utilizado"), não só um
+  badge compatível/incompatível — é a mesma conta que `ratio_pct` já faz
+  em `inversores_compativeis()`, só falta expor o número.
+- **Default inteligente quando o filtro fica vazio** ("não selecionar
+  nenhuma marca = deixamos o sistema escolher o melhor custo-benefício")
+  em vez de "sem resultado" — vale considerar em qualquer filtro nosso que
+  hoje trata vazio como ausência de critério.
+- Permitir **remover uma linha de material inteira** (não só zerar
+  quantidade) na lista de itens sugeridos — Belenus tem, Intelbras não.
+- Fotos/vídeo de instalação embutidos na tela de escolha de estrutura —
+  ideia de conteúdo, não de dado; baixo prioridade técnica mas alto valor
+  de confiança pro cliente que vê o material depois.
 - Padronizar visualmente quais campos são realmente obrigatórios (poucos)
   vs opcionais (a maioria), e deixar isso claro na tela — hoje o form tem
   bastante `<span class="obrigatorio">*</span>` espalhado, vale revisar se
